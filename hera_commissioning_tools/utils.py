@@ -67,13 +67,14 @@ def load_data(data_path, JD):
     uvd_yy1 = UVData()
 
     unread = True
+    n = len(HHfiles) // 2
     if len(HHfiles) > 0:
-        hhfile1 = HHfiles[len(HHfiles) // 2]
         while unread is True:
+            hhfile1 = HHfiles[n]
             try:
                 uvd_hh.read(hhfile1, skip_bad_files=True)
             except:
-                hhfile += 1
+                n += 1
                 continue
             unread = False
         uvd_xx1 = uvd_hh.select(polarizations=-5, inplace=False)

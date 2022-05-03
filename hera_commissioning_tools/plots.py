@@ -1,7 +1,6 @@
 # Licensed under the MIT License
 
 import numpy as np
-from pyuvdata import UVData
 import matplotlib.pyplot as plt
 from . import utils
 
