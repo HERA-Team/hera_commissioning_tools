@@ -306,3 +306,149 @@ def plot_wfs(uvd, pol, mean_sub=False, savefig=False, vmin=None, vmax=None, vmin
         plt.savefig(title, bbox_inches='tight', dpi=100)
     plt.show()
     plt.close()
+
+
+def auto_waterfall_lineplot(uv, ant, jd, vmin=1e6, vmax=1e8, title='', size='large', savefig=False, outfig='',
+                            mean_sub=False):
+    """
+    Function to plot an auto waterfall, with two lineplots underneath: one single spectrum from the middle of the
+    observation, and one spectrum that is the average over the night.
+
+    Parameters:
+    ---------
+    uv: UVData Object
+        Observation data.
+    ant: Int or Tuple
+        If a single integer, the antenna number to plot, must be in the provided uv object. If a tuple, the
+        cross-correlation to plot, formatted as (antenna 1, antenna 2).
+    jd: Int
+        JD of the observation.
+    vmin: Int
+        Colorbar minimum value.
+    vmax: Int
+        Colorbar maximum value.
+    title: String
+        Plot title.
+    size: String
+        Option to determine the size of the resulting figure. Default is 'large', which makes the plot easiest to
+        read. Use 'small' option if producing many these plots from another script to refrain from overloading the
+        output.
+    savefig: Boolean
+        Option to write out the resulting figure.
+    outfig: String
+        Full path to write out the figure, if savefig is True.
+    mean_sub: Boolean
+        Option to plot the mean-subtracted visibilities instead of the raw. Default is False.
+
+    Returns:
+    -------
+    None
+
+    """
+    from matplotlib import colors
+    import matplotlib.gridspec as gridspec
+
+    h = cm_active.ActiveData(at_date=jd)
+    h.load_apriori()
+
+    freq = uv.freq_array[0] * 1e-6
+    if size == 'large':
+        fig = plt.figure(figsize=(22, 10))
+    else:
+        fig = plt.figure(figsize=(12, 8))
+    gs = gridspec.GridSpec(3, 2, height_ratios=[2, 0.7, 1])
+    it = 0
+    pols = ['xx', 'yy']
+    pol_dirs = ['NN', 'EE']
+    for p, pol in enumerate(pols):
+        waterfall = plt.subplot(gs[it])
+        jd_ax = plt.gca()
+        times = np.unique(uv.time_array)
+        if type(ant) is int:
+            d = np.abs(uv.get_data((ant, ant, pol)))
+            averaged_data = np.abs(np.average(uv.get_data((ant, ant, pol)), 0))
+            dat = abs(uv.get_data((ant, ant, pol)))
+        else:
+            d = np.abs(uv.get_data((ant[0], ant[1], pol)))
+            averaged_data = np.abs(np.average(uv.get_data((ant[0], ant[1], pol)), 0))
+            dat = abs(uv.get_data((ant[0], ant[1], pol)))
+        if len(np.nonzero(d)[0]) == 0:
+            print('#########################################')
+            print(f'Data for antenna {ant} is entirely zeros')
+            print('#########################################')
+            plt.close()
+            return
+        if mean_sub is False:
+            im = plt.imshow(d, norm=colors.LogNorm(), aspect='auto', vmin=vmin, vmax=vmax)
+        else:
+            ms = np.subtract(np.log10(dat), np.nanmean(np.log10(dat), axis=0))
+            im = plt.imshow(ms, aspect='auto', vmin=vmin, vmax=vmax)
+        if type(ant) is int:
+            status = h.apriori[f'HH{ant}:A'].status
+            abb = status_abbreviations[status]
+        else:
+            status = [h.apriori[f'HH{ant[0]}:A'].status, h.apriori[f'HH{ant[1]}:A'].status]
+            abb = [status_abbreviations[s] for s in status]
+        waterfall.set_title(f'{pol_dirs[p]} pol')
+        freqs = uv.freq_array[0, :] / 1000000
+        xticks = np.arange(0, len(freqs), 120)
+        plt.xticks(xticks, labels=np.around(freqs[xticks], 2))
+        if p == 0:
+            jd_ax.set_ylabel('JD')
+            jd_yticks = [int(i) for i in np.linspace(0, len(times) - 1, 8)]
+            jd_labels = np.around(times[jd_yticks], 2)
+            jd_ax.set_yticks(jd_yticks)
+            jd_ax.set_yticklabels(jd_labels)
+            jd_ax.autoscale(False)
+        if p == 1:
+            lst_ax = jd_ax.twinx()
+            lst_ax.set_ylabel('LST (hours)')
+            lsts = uv.lst_array * 3.819719
+            inds = np.unique(lsts, return_index=True)[1]
+            lsts = [lsts[ind] for ind in sorted(inds)]
+            lst_yticks = [int(i) for i in np.linspace(0, len(lsts) - 1, 8)]
+            lst_labels = np.around([lsts[i] for i in lst_yticks], 2)
+            lst_ax.set_yticks(lst_yticks)
+            lst_ax.set_yticklabels(lst_labels)
+            lst_ax.set_ylim(jd_ax.get_ylim())
+            lst_ax.autoscale(False)
+            jd_ax.set_yticks([])
+        line = plt.subplot(gs[it + 2])
+        plt.plot(freq, averaged_data)
+        line.set_yscale('log')
+        if p == 0:
+            line.set_ylabel('Night Average')
+        else:
+            line.set_yticks([])
+        line.set_xlim(freq[0], freq[-1])
+        line.set_xticks([])
+
+        line2 = plt.subplot(gs[it + 4])
+        dat = np.abs(dat[len(dat) // 2, :])
+        plt.plot(freq, dat)
+        line2.set_yscale('log')
+        line2.set_xlabel('Frequency (MHz)')
+        if p == 0:
+            line2.set_ylabel('Single Slice')
+        else:
+            line2.set_yticks([])
+        line2.set_xlim(freq[0], freq[-1])
+
+        plt.setp(waterfall.get_xticklabels(), visible=False)
+        plt.subplots_adjust(hspace=.0)
+        cbar = plt.colorbar(im, pad=0.25, orientation='horizontal')
+        cbar.set_label('Power')
+        it = 1
+    if size == 'small':
+        fontsize = 10
+    elif size == 'large':
+        fontsize = 20
+    if type(ant) is int:
+        fig.suptitle(f'{ant} ({abb}) {title}', fontsize=fontsize, backgroundcolor=status_colors[status], y=0.96)
+    else:
+        fig.suptitle(f'{ant[0]} ({abb[0]}), {ant[1]} ({abb[1]}) {title}', fontsize=fontsize, y=0.96)
+    #     plt.annotate(title, xy=(0.5,0.94), ha='center',xycoords='figure fraction')
+    if savefig:
+        plt.savefig(outfig)
+    plt.show()
+    plt.close()
