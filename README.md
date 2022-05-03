@@ -1,0 +1,2 @@
+# hera_commissioning_tools
+Repository for plotting and analysis tools created and used by the HERA commissioning team. This repo is intended to hold tools as they are being workshopped, or finalized tools that have a narrow scope. Any finalized tools that are broadly useful to the collaboration should be ported to the uvtools repo, where they will be required to have proper test coverage and meet other collaboration standards.
