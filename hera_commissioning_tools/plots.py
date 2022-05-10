@@ -452,3 +452,5 @@ def auto_waterfall_lineplot(uv, ant, jd, vmin=1e6, vmax=1e8, title='', size='lar
         plt.savefig(outfig)
     plt.show()
     plt.close()
+
+bananas
