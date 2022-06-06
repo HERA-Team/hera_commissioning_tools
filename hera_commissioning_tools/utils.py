@@ -184,25 +184,25 @@ def get_use_ants(uvd, statuses, jd):
     return use_ants
 
 
-def read_template(template_path):
-    """
-    Function to read in template files.
+# def read_template(template_path):
+#     """
+#     Function to read in template files.
 
-    Parameters:
-    -----------
-    template_path: String
-        Path to template file.
+#     Parameters:
+#     -----------
+#     template_path: String
+#         Path to template file.
 
-    Returns:
-    --------
-    data: Dict
-        Dictionary containing template data.
-    """
-    import json
+#     Returns:
+#     --------
+#     data: Dict
+#         Dictionary containing template data.
+#     """
+#     import json
 
-    with open(template_path) as f:
-        data = json.load(f)
-    return data
+#     with open(template_path) as f:
+#         data = json.load(f)
+#     return data
 
 
 def detectWrongConnectionAnts(uvd, dtype="load"):
