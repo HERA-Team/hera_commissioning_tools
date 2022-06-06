@@ -25,10 +25,10 @@ repos:
               - flake8-comprehensions
               - flake8-builtins
               - flake8-copyright
-              - pep8-naming
+              # - pep8-naming
 
 
     - repo: https://github.com/psf/black
-      rev: 21.10b0
+      rev: 22.3.0
       hooks:
           - id: black
