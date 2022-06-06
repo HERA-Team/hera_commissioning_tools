@@ -557,3 +557,506 @@ def auto_waterfall_lineplot(
         plt.savefig(outfig)
     plt.show()
     plt.close()
+
+
+def plot_sky_map(
+    uvd,
+    catalog_path,
+    ra_pad=20,
+    dec_pad=30,
+    clip=True,
+    fwhm=11,
+    nx=300,
+    ny=200,
+    sources=[],
+):
+    """
+    Function to plot the Haslam radio sky map with an overlay of bright radio sources and the hera observation band. Specific LSTS observed on the given night will be shaded in.
+
+    Parameters
+    ----------
+    uvd: UVData Object
+        UVData object used to collect telescope location and observation times. This object should contain the full time range of the observation for proper shading on the plot.
+    ra_pad: Int
+        Number of degrees to pad the HERA band in RA. Only used if clip is set to True. Default is 20.
+    dec_pad: Int
+        Number of degrees to pad the HERA band in DEC. Only used if clip is set to True. Default is 30.
+    clip: Boolean
+        Option to clip the map at the RA and DEC indicated by ra_pad and dec_pad.
+    fwhm: Int
+        FWHM of the HERA beam, used to set the width of the shaded area. Default is 11, the true fwhm of the HERA beam.
+    nx: Int
+        Number of grid points on the RA axis
+    ny: Int
+        Number of grid points on the DEC axis
+    sources: List
+        A list of radio sources to include on the map.
+
+    """
+    from astropy_healpix import HEALPix
+    from astropy.io import fits
+    from astropy.coordinates import Galactic, EarthLocation, Angle
+    from astropy.coordinates import SkyCoord as sc
+    from astropy.time import Time
+    from astropy import units as u
+    import healpy
+
+    hdulist = fits.open(catalog_path)
+
+    # Set up the HEALPix projection
+    nside = hdulist[1].header["NSIDE"]
+    order = hdulist[1].header["ORDERING"]
+    hp = HEALPix(nside=nside, order=order, frame=Galactic())
+
+    # Get RA/DEC coords of observation
+    loc = EarthLocation.from_geocentric(*uvd.telescope_location, unit="m")
+    time_array = uvd.time_array
+    obstime_start = Time(time_array[0], format="jd", location=loc)
+    obstime_end = Time(time_array[-1], format="jd", location=loc)
+    zenith_start = sc(
+        Angle(0, unit="deg"),
+        Angle(90, unit="deg"),
+        frame="altaz",
+        obstime=obstime_start,
+        location=loc,
+    )
+    zenith_start = zenith_start.transform_to("icrs")
+    zenith_end = sc(
+        Angle(0, unit="deg"),
+        Angle(90, unit="deg"),
+        frame="altaz",
+        obstime=obstime_end,
+        location=loc,
+    )
+    zenith_end = zenith_end.transform_to("icrs")
+    lst_end = obstime_end.sidereal_time("mean").hour
+    start_coords = [zenith_start.ra.degree, zenith_start.dec.degree]
+    if start_coords[0] > 180:
+        start_coords[0] = start_coords[0] - 360
+    end_coords = [zenith_end.ra.degree, zenith_end.dec.degree]
+    if end_coords[0] > 180:
+        end_coords[0] = end_coords[0] - 360
+
+    # Sample a 300x200 grid in RA/Dec
+    ra_range = [zenith_start.ra.degree - ra_pad, zenith_end.ra.degree + ra_pad]
+    if ra_range[0] > 180:
+        ra_range[0] = ra_range[0] - 360
+    dec_range = [zenith_start.dec.degree - dec_pad, zenith_end.dec.degree + dec_pad]
+    if clip is True:
+        ra = np.linspace(ra_range[0], ra_range[1], nx)
+        dec = np.linspace(dec_range[0], dec_range[1], ny)
+    else:
+        ra = np.linspace(-180, 180, nx)
+        dec = np.linspace(-90, zenith_start.dec.degree + 90, ny)
+    ra_grid, dec_grid = np.meshgrid(ra * u.deg, dec * u.deg)
+
+    # Create alpha grid
+    alphas = np.ones(ra_grid.shape)
+    alphas = np.multiply(alphas, 0.5)
+    ra_min = np.argmin(np.abs(np.subtract(ra, start_coords[0] - fwhm / 2)))
+    ra_max = np.argmin(np.abs(np.subtract(ra, end_coords[0] + fwhm / 2)))
+    dec_min = np.argmin(np.abs(np.subtract(dec, start_coords[1] - fwhm / 2)))
+    dec_max = np.argmin(np.abs(np.subtract(dec, end_coords[1] + fwhm / 2)))
+    alphas[dec_min:dec_max, ra_min:ra_max] = 1
+
+    # Set up Astropy coordinate objects
+    coords = sc(ra_grid.ravel(), dec_grid.ravel(), frame="icrs")
+
+    # Interpolate values
+    temperature = healpy.read_map(catalog_path)
+    tmap = hp.interpolate_bilinear_skycoord(coords, temperature)
+    tmap = tmap.reshape((ny, nx))
+    tmap = np.flip(tmap, axis=1)
+    alphas = np.flip(alphas, axis=1)
+
+    # Make a plot of the interpolated temperatures
+    plt.figure(figsize=(12, 7))
+    plt.imshow(
+        tmap,
+        extent=[ra[-1], ra[0], dec[0], dec[-1]],
+        cmap=plt.cm.viridis,
+        aspect="auto",
+        vmin=10,
+        vmax=40,
+        alpha=alphas,
+        origin="lower",
+    )
+    plt.xlabel("RA (ICRS)")
+    plt.ylabel("DEC (ICRS)")
+    lsts = uvd.lst_array * 3.819719
+    inds = np.unique(lsts, return_index=True)[1]
+    lsts = [lsts[ind] for ind in sorted(inds)]
+    lsts_use = lsts[0::52]
+    xcoords = np.linspace(start_coords[0], end_coords[0], len(lsts))[0::52]
+    plt.xlabel("RA (ICRS)")
+    plt.ylabel("DEC (ICRS)")
+    plt.hlines(
+        y=start_coords[1] - fwhm / 2, xmin=ra[-1], xmax=ra[0], linestyles="dashed"
+    )
+    plt.hlines(
+        y=start_coords[1] + fwhm / 2, xmin=ra[-1], xmax=ra[0], linestyles="dashed"
+    )
+    plt.vlines(x=end_coords[0], ymin=start_coords[1], ymax=dec[-1], linestyles="dashed")
+    plt.annotate(
+        np.around(lst_end, 1),
+        xy=(end_coords[0], dec[-1]),
+        xytext=(0, 8),
+        fontsize=10,
+        xycoords="data",
+        textcoords="offset points",
+        horizontalalignment="center",
+    )
+    for i, lst in enumerate(lsts_use):
+        plt.annotate(
+            np.around(lst, 1),
+            xy=(xcoords[i], dec[-1]),
+            xytext=(0, 8),
+            fontsize=10,
+            xycoords="data",
+            textcoords="offset points",
+            horizontalalignment="center",
+        )
+        plt.vlines(
+            x=xcoords[i], ymin=start_coords[1], ymax=dec[-1], linestyles="dashed"
+        )
+    plt.annotate(
+        "LST (hours)",
+        xy=(np.average([start_coords[0], end_coords[0]]), dec[-1]),
+        xytext=(0, 22),
+        fontsize=10,
+        xycoords="data",
+        textcoords="offset points",
+        horizontalalignment="center",
+    )
+    for s in sources:
+        if s[1] > dec[0] and s[1] < dec[-1]:
+            if s[0] > 180:
+                s = (s[0] - 360, s[1], s[2])
+            if s[0] > ra[0] and s[0] < ra[-1]:
+                if s[2] == "LMC" or s[2] == "SMC":
+                    plt.annotate(
+                        s[2],
+                        xy=(s[0], s[1]),
+                        xycoords="data",
+                        fontsize=8,
+                        xytext=(20, -20),
+                        textcoords="offset points",
+                        arrowprops=dict(
+                            facecolor="black", shrink=2, width=1, headwidth=4
+                        ),
+                    )
+                else:
+                    plt.scatter(s[0], s[1], c="k", s=6)
+                    if len(s[2]) > 0:
+                        plt.annotate(
+                            s[2], xy=(s[0] + 3, s[1] - 4), xycoords="data", fontsize=6
+                        )
+    plt.show()
+    plt.close()
+    hdulist.close()
+
+
+def plotVisibilitySpectra(uv, use_ants="all", badAnts=[], pols=["xx", "yy"]):
+    """
+    Plots visibility amplitude spectra for a set of redundant baselines, labeled by inter vs. intranode baselines.
+
+    Parameters:
+    -----------
+    uv: UVData Object
+        Data object to calculate spectra from.
+    use_ants: List or 'all'
+        List of antennas to include. If set to 'all', all antennas with data will be included.
+    badAnts: List
+        A list of antennas not to include in the plot
+    pols: List
+        Polarizations to plot. Can include any polarization strings accepted by pyuvdata.
+
+    Returns:
+    --------
+    None
+
+    """
+    from hera_mc import cm_hookup
+    from astropy.coordinates import EarthLocation
+    from astropy.time import Time
+
+    plt.subplots_adjust(wspace=0.25)
+    x = cm_hookup.get_hookup("default")
+    baseline_groups = utils.get_baseline_groups(uv, use_ants="all")
+    if use_ants == "all":
+        use_ants = uv.get_ants()
+    freqs = uv.freq_array[0] / 1000000
+    loc = EarthLocation.from_geocentric(*uv.telescope_location, unit="m")
+    obstime_start = Time(uv.time_array[0], format="jd", location=loc)
+    JD = int(obstime_start.jd)
+    j = 0
+    fig, axs = plt.subplots(
+        len(baseline_groups), 2, figsize=(12, 4 * len(baseline_groups))
+    )
+    for orientation in baseline_groups:
+        bls = baseline_groups[orientation]
+        usable = 0
+        for i in range(len(bls)):
+            ants = uv.baseline_to_antnums(bls[i])
+            if ants[0] in badAnts or ants[1] in badAnts:
+                continue
+            if ants[0] in use_ants and ants[1] in use_ants:
+                usable += 1
+        if usable <= 4:
+            use_all = True
+            print(
+                f"Note: not enough baselines of orientation {orientation} - using all available baselines"
+            )
+        elif usable <= 10:
+            print(
+                f"Note: only a small number of baselines of orientation {orientation} are available"
+            )
+            use_all = False
+        else:
+            use_all = False
+        for p in range(len(pols)):
+            inter = False
+            intra = False
+            pol = pols[p]
+            for i in range(len(bls)):
+                ants = uv.baseline_to_antnums(bls[i])
+                ant1 = ants[0]
+                ant2 = ants[1]
+                if (ant1 in use_ants and ant2 in use_ants) or use_all is True:
+                    key1 = "HH%i:A" % (ant1)
+                    n1 = x[key1].get_part_from_type("node")["E<ground"][1:]
+                    key2 = "HH%i:A" % (ant2)
+                    n2 = x[key2].get_part_from_type("node")["E<ground"][1:]
+                    dat = np.mean(np.abs(uv.get_data(ant1, ant2, pol)), 0)
+                    auto1 = np.mean(np.abs(uv.get_data(ant1, ant1, pol)), 0)
+                    auto2 = np.mean(np.abs(uv.get_data(ant2, ant2, pol)), 0)
+                    norm = np.sqrt(np.multiply(auto1, auto2))
+                    dat = np.divide(dat, norm)
+                    if ant1 in badAnts or ant2 in badAnts:
+                        continue
+                    if n1 == n2:
+                        if intra is False:
+                            axs[j][p].plot(freqs, dat, color="blue", label="intranode")
+                            intra = True
+                        else:
+                            axs[j][p].plot(freqs, dat, color="blue")
+                    else:
+                        if inter is False:
+                            axs[j][p].plot(freqs, dat, color="red", label="internode")
+                            inter = True
+                        else:
+                            axs[j][p].plot(freqs, dat, color="red")
+                    axs[j][p].set_yscale("log")
+                    axs[j][p].set_title("%s: %s pol" % (orientation, pols[p]))
+                    if j == 0:
+                        axs[len(baseline_groups) - 1][p].set_xlabel("Frequency (MHz)")
+            if p == 0:
+                axs[j][p].legend()
+        axs[j][0].set_ylabel("log(|Vij|)")
+        axs[j][1].set_yticks([])
+        j += 1
+    fig.suptitle("Visibility spectra (JD: %i)" % (JD))
+    fig.subplots_adjust(top=0.94, wspace=0.05)
+    plt.show()
+    plt.close()
+
+
+def plot_antenna_positions(uv, badAnts=[], flaggedAnts={}, use_ants="all"):
+    """
+    Plots the positions of all antennas that have data, colored by node.
+
+    Parameters
+    ----------
+    uv: UVData object
+        Observation to extract antenna numbers and positions from
+    badAnts: List
+        A list of flagged or bad antennas. These will be outlined in black in the plot.
+    flaggedAnts: Dict
+        A dict of antennas flagged by ant_metrics with value corresponding to color in ant_metrics plot
+    use_ants: List or 'all'
+        List of antennas to include, or set to 'all' to include all antennas.
+
+    Returns:
+    ----------
+    None
+
+    """
+    from hera_mc import geo_sysdef
+
+    plt.figure(figsize=(12, 10))
+    nodes, antDict, inclNodes = utils.generate_nodeDict(uv)
+    if use_ants == "all":
+        use_ants = uv.get_ants()
+    N = len(inclNodes)
+    cmap = plt.get_cmap("tab20")
+    i = 0
+    ants = geo_sysdef.read_antennas()
+    nodes = geo_sysdef.read_nodes()
+    firstNode = True
+    for n, info in nodes.items():
+        firstAnt = True
+        if n > 9:
+            n = str(n)
+        else:
+            n = f"0{n}"
+        if n in inclNodes:
+            color = cmap(round(20 / N * i))
+            i += 1
+            for a in info["ants"]:
+                width = 0
+                widthf = 0
+                if a in badAnts:
+                    width = 2
+                if a in flaggedAnts.keys():
+                    widthf = 6
+                station = "HH{}".format(a)
+                try:
+                    this_ant = ants[station]
+                except KeyError:
+                    continue
+                x = this_ant["E"]
+                y = this_ant["N"]
+                if a in use_ants:
+                    falpha = 0.5
+                else:
+                    falpha = 0.1
+                if firstAnt:
+                    if a in badAnts or a in flaggedAnts.keys():
+                        if falpha == 0.1:
+                            plt.plot(
+                                x,
+                                y,
+                                marker="h",
+                                markersize=40,
+                                color=color,
+                                alpha=falpha,
+                                markeredgecolor="black",
+                                markeredgewidth=0,
+                            )
+                            plt.annotate(a, [x - 1, y])
+                            continue
+                        plt.plot(
+                            x,
+                            y,
+                            marker="h",
+                            markersize=40,
+                            color=color,
+                            alpha=falpha,
+                            label=str(n),
+                            markeredgecolor="black",
+                            markeredgewidth=0,
+                        )
+                        if a in flaggedAnts.keys():
+                            plt.plot(
+                                x,
+                                y,
+                                marker="h",
+                                markersize=40,
+                                color=color,
+                                markeredgecolor=flaggedAnts[a],
+                                markeredgewidth=widthf,
+                                markerfacecolor="None",
+                            )
+                        if a in badAnts:
+                            plt.plot(
+                                x,
+                                y,
+                                marker="h",
+                                markersize=40,
+                                color=color,
+                                markeredgecolor="black",
+                                markeredgewidth=width,
+                                markerfacecolor="None",
+                            )
+                    else:
+                        if falpha == 0.1:
+                            plt.plot(
+                                x,
+                                y,
+                                marker="h",
+                                markersize=40,
+                                color=color,
+                                alpha=falpha,
+                                markeredgecolor="black",
+                                markeredgewidth=0,
+                            )
+                            plt.annotate(a, [x - 1, y])
+                            continue
+                        plt.plot(
+                            x,
+                            y,
+                            marker="h",
+                            markersize=40,
+                            color=color,
+                            alpha=falpha,
+                            label=str(n),
+                            markeredgecolor="black",
+                            markeredgewidth=width,
+                        )
+                    firstAnt = False
+                else:
+                    plt.plot(
+                        x,
+                        y,
+                        marker="h",
+                        markersize=40,
+                        color=color,
+                        alpha=falpha,
+                        markeredgecolor="black",
+                        markeredgewidth=0,
+                    )
+                    if a in flaggedAnts.keys() and a in use_ants:
+                        plt.plot(
+                            x,
+                            y,
+                            marker="h",
+                            markersize=40,
+                            color=color,
+                            markeredgecolor=flaggedAnts[a],
+                            markeredgewidth=widthf,
+                            markerfacecolor="None",
+                        )
+                    if a in badAnts and a in use_ants:
+                        plt.plot(
+                            x,
+                            y,
+                            marker="h",
+                            markersize=40,
+                            color=color,
+                            markeredgecolor="black",
+                            markeredgewidth=width,
+                            markerfacecolor="None",
+                        )
+                plt.annotate(a, [x - 1, y])
+            if firstNode:
+                plt.plot(
+                    info["E"],
+                    info["N"],
+                    "*",
+                    color="gold",
+                    markersize=20,
+                    label="Node Box",
+                    markeredgecolor="k",
+                    markeredgewidth=1,
+                )
+                firstNode = False
+            else:
+                plt.plot(
+                    info["E"],
+                    info["N"],
+                    "*",
+                    color="gold",
+                    markersize=20,
+                    markeredgecolor="k",
+                    markeredgewidth=1,
+                )
+    plt.legend(
+        title="Node Number",
+        bbox_to_anchor=(1.15, 0.9),
+        markerscale=0.5,
+        labelspacing=1.5,
+    )
+    plt.xlabel("East")
+    plt.ylabel("North")
+    plt.show()
+    plt.close()

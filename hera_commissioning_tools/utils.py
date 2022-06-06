@@ -4,7 +4,7 @@ import numpy as np
 from pyuvdata import UVData
 
 
-def load_data(data_path, JD):
+def get_files(data_path, JD):
     """
     Function to find all data files for a given night and read a small sample file.
 
@@ -25,70 +25,15 @@ def load_data(data_path, JD):
         List of all .sum.autos.uvh5 files.
     diffautos: List
         List of all .diff.autos.uvh5 files.
-    uvd_xx1: UVData Object
-        UVData object holding data in the xx polarization from one file in the middle of the observation.
-    uvd_yy1: UVData Object
-        UVData object holding data in the yy polarization from one file in the middle of the observation.
     """
     import glob
 
-    HHfiles = sorted(glob.glob("{0}/zen.{1}.*.sum.uvh5".format(data_path, JD)))
-    difffiles = sorted(glob.glob("{0}/zen.{1}.*.diff.uvh5".format(data_path, JD)))
-    HHautos = sorted(glob.glob("{0}/zen.{1}.*.sum.autos.uvh5".format(data_path, JD)))
-    diffautos = sorted(glob.glob("{0}/zen.{1}.*.diff.autos.uvh5".format(data_path, JD)))
-    sep = "."
+    HHfiles = sorted(glob.glob("{0}/*{1}*.sum.uvh5".format(data_path, JD)))
+    difffiles = sorted(glob.glob("{0}/*{1}*.diff.uvh5".format(data_path, JD)))
+    HHautos = sorted(glob.glob("{0}/*{1}*.sum.autos.uvh5".format(data_path, JD)))
+    diffautos = sorted(glob.glob("{0}/*{1}*.diff.autos.uvh5".format(data_path, JD)))
 
-    if len(HHfiles) > 0:
-        x = sep.join(HHfiles[0].split(".")[-4:-2])
-        y = sep.join(HHfiles[-1].split(".")[-4:-2])
-        print(f"{len(HHfiles)} sum files found between JDs {x} and {y}")
-    if len(difffiles) > 0:
-        x = sep.join(difffiles[0].split(".")[-4:-2])
-        y = sep.join(difffiles[-1].split(".")[-4:-2])
-        print(f"{len(difffiles)} diff files found between JDs {x} and {y}")
-    if len(HHautos) > 0:
-        x = sep.join(HHautos[0].split(".")[-5:-3])
-        y = sep.join(HHautos[-1].split(".")[-5:-3])
-        print(f"{len(HHautos)} sum auto files found between JDs {x} and {y}")
-    if len(diffautos) > 0:
-        x = sep.join(diffautos[0].split(".")[-5:-3])
-        y = sep.join(diffautos[-1].split(".")[-5:-3])
-        print(f"{len(diffautos)} diff auto files found between JDs {x} and {y}")
-
-    # choose one for single-file plots
-
-    if len(HHfiles) != len(difffiles) and len(difffiles) > 0:
-        print("############################################################")
-        print("######### DIFFERENT NUMBER OF SUM AND DIFF FILES ###########")
-        print("############################################################")
-    # Load data
-    uvd_hh = UVData()
-    uvd_xx1 = UVData()
-    uvd_yy1 = UVData()
-
-    unread = True
-    n = len(HHfiles) // 2
-    if len(HHfiles) > 0:
-        while unread is True:
-            hhfile1 = HHfiles[n]
-            try:
-                uvd_hh.read(hhfile1, skip_bad_files=True)
-            except:
-                n += 1
-                continue
-            unread = False
-        uvd_xx1 = uvd_hh.select(polarizations=-5, inplace=False)
-        uvd_xx1.ants = np.unique(
-            np.concatenate([uvd_xx1.ant_1_array, uvd_xx1.ant_2_array])
-        )
-        # -5: 'xx', -6: 'yy', -7: 'xy', -8: 'yx'
-
-        uvd_yy1 = uvd_hh.select(polarizations=-6, inplace=False)
-        uvd_yy1.ants = np.unique(
-            np.concatenate([uvd_yy1.ant_1_array, uvd_yy1.ant_2_array])
-        )
-
-    return HHfiles, difffiles, HHautos, diffautos, uvd_xx1, uvd_yy1
+    return HHfiles, difffiles, HHautos, diffautos
 
 
 def get_ant_status(active_apriori, ant):
@@ -572,13 +517,14 @@ def generateDataTable(uv, pols=["xx", "yy"]):
     return dataObject
 
 
-def gather_source_list(catalog_path="G4Jy_catalog.tsv"):
+def gather_source_list(catalog_path=""):
     """
     Helper function to gather a source list to use in plot_sky_map.
 
     Parameters:
     -----------
-    None
+    catalog_path: String
+        Path to source catalog to use for map. If set to None, only the named sources will be included on the map.
 
     Returns:
     --------
@@ -587,26 +533,26 @@ def gather_source_list(catalog_path="G4Jy_catalog.tsv"):
     """
     import csv
 
-    sources = [
-        (50.6750, -37.2083, "Fornax A"),
-        (201.3667, -43.0192, "Cen A"),
-        (252.7833, 4.9925, "Hercules A"),
-        (139.5250, -12.0947, "Hydra A"),
-        (79.9583, -45.7789, "Pictor A"),
-        (187.7042, 12.3911, "Virgo A"),
-        (83.8208, -59.3897, "Orion A"),
-        (80.8958, -69.7561, "LMC"),
-        (13.1875, -72.8286, "SMC"),
-        (201.3667, -43.0192, "Cen A"),
-        (83.6333, 20.0144, "Crab Pulsar"),
-        (128.8375, -45.1764, "Vela SNR"),
-    ]
+    sources = []
+    sources.append((50.6750, -37.2083, "Fornax A"))
+    sources.append((201.3667, -43.0192, "Cen A"))
     # sources.append((83.6333,22.0144,'Taurus A'))
-    cat = open(catalog_path)
-    f = csv.reader(cat, delimiter="\n")
-    for row in f:
-        if len(row) > 0 and row[0][0] == "J":
-            s = row[0].split(";")
-            tup = (float(s[1]), float(s[2]), "")
-            sources.append(tup)
+    sources.append((252.7833, 4.9925, "Hercules A"))
+    sources.append((139.5250, -12.0947, "Hydra A"))
+    sources.append((79.9583, -45.7789, "Pictor A"))
+    sources.append((187.7042, 12.3911, "Virgo A"))
+    sources.append((83.8208, -59.3897, "Orion A"))
+    sources.append((80.8958, -69.7561, "LMC"))
+    sources.append((13.1875, -72.8286, "SMC"))
+    sources.append((201.3667, -43.0192, "Cen A"))
+    sources.append((83.6333, 20.0144, "Crab Pulsar"))
+    sources.append((128.8375, -45.1764, "Vela SNR"))
+    if catalog_path is not None:
+        cat = open(catalog_path)
+        f = csv.reader(cat, delimiter="\n")
+        for row in f:
+            if len(row) > 0 and row[0][0] == "J":
+                s = row[0].split(";")
+                tup = (float(s[1]), float(s[2]), "")
+                sources.append(tup)
     return sources
