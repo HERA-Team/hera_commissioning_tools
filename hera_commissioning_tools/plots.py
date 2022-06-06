@@ -1152,8 +1152,8 @@ def plotEvenOddWaterfalls(uvd_sum, uvd_diff):
     fig = plt.figure(figsize=(14, 3))
     ax = fig.add_subplot()
     my_cmap = copy.deepcopy(matplotlib.cm.get_cmap("viridis"))
-    my_cmap.set_under("r")
-    my_cmap.set_over("r")
+    # my_cmap.set_under("r")
+    # my_cmap.set_over("r")
     im = plt.imshow(
         rat, aspect="auto", vmin=0.5, vmax=2, cmap=my_cmap, interpolation="nearest"
     )
@@ -1173,3 +1173,156 @@ def plotEvenOddWaterfalls(uvd_sum, uvd_diff):
         i += 192
     plt.show()
     plt.close()
+
+
+def plotCrossWaterfallsByCorrValue(
+    uvd_sum,
+    perBlSummary=None,
+    percentile_set=[1, 20, 40, 60, 80, 99],
+    savefig=False,
+    outfig="",
+    pol="allpols",
+    metric="abs",
+):
+    """
+    Function to plot a set of cross visibility waterfalls. Baselines are with a correlation metric value equal to the percentile of the total distribution specified by the percentile_set parameter will be plot. This plot is useful for seeing how the visibilities change with a higher or lower correlation metric value.
+
+    Parameters:
+    -----------
+    uvd_sum: UVData Object
+        Sum visibility data.
+    perBlSummary: Dict
+        A dictionary containing a per baseline summary of the correlation data to plot.
+    percentile_set: List
+        Set of correlation metric percentiles to plot baselines for. Default is [1,20,40,60,80,99].
+    savefig: Boolean
+        Option to write out the figure.
+    outfig: String
+        Full path to write out the figure.
+    pol: String
+        Any polarization string included in perBlSummary. Default is 'allpols'.
+    metric: String
+        Can be 'abs', 'real', 'imag', or 'phase' to plot the absolute value, real component, imaginary component, or phase of the visibilites, respectively.
+
+    Returns:
+    --------
+    None
+
+    """
+    from matplotlib import cm, colors
+
+    keys = ["all", "internode", "intranode", "intrasnap"]
+    freqs = uvd_sum.freq_array[0] * 1e-6
+    lsts = uvd_sum.lst_array * 3.819719
+    inds = np.unique(lsts, return_index=True)[1]
+    lsts = [lsts[ind] for ind in sorted(inds)]
+    xticks = [int(i) for i in np.linspace(0, len(freqs) - 1, 5)]
+    xticklabels = [int(f) for f in freqs[xticks]]
+    yticks = [int(i) for i in np.linspace(0, len(lsts) - 1, 6)]
+    yticklabels = [np.around(lsts[ytick], 1) for ytick in yticks]
+    fig, axes = plt.subplots(
+        len(percentile_set), 4, figsize=(16, len(percentile_set) * 3)
+    )
+    fig.subplots_adjust(
+        left=0.05, bottom=0.03, right=0.9, top=0.95, wspace=0.15, hspace=0.3
+    )
+    corrmap = plt.get_cmap("plasma")
+    cNorm = colors.Normalize(vmin=-2, vmax=0)
+    scalarMap = cm.ScalarMappable(norm=cNorm, cmap=corrmap)
+    for j, p in enumerate(percentile_set):
+        for i, key in enumerate(keys):
+            vals = np.abs(np.nanmean(perBlSummary[pol][f"{key}_vals"], axis=1))
+            ax = axes[j, i]
+            v = np.percentile(vals, p)
+            vind = np.argmin(abs(vals - v))
+            bl = perBlSummary[pol][f"{key}_bls"][vind]
+            if pol == "allpols":
+                blpol = (int(bl[0][:-1]), int(bl[1][:-1]), f"{bl[0][-1]}{bl[1][-1]}")
+            else:
+                blpol = (int(bl[0][:-1]), int(bl[1][:-1]), pol)
+            if metric == "phase":
+                dat = np.angle(uvd_sum.get_data(blpol))
+                vmin = -np.pi
+                vmax = np.pi
+                cmap = "twilight"
+            elif metric == "abs":
+                dat = np.abs(uvd_sum.get_data(blpol))
+                vmin = np.percentile(dat, 1)
+                vmax = np.percentile(dat, 99)
+                cmap = "viridis"
+            else:
+                cmap = "coolwarm"
+                if metric == "real":
+                    dat = np.real(uvd_sum.get_data(blpol))
+                elif metric == "imag":
+                    dat = np.imag(uvd_sum.get_data(blpol))
+                if np.percentile(dat, 99) > np.abs(np.percentile(dat, 1)):
+                    vmax = np.percentile(dat, 99)
+                    vmin = -vmax
+                else:
+                    vmin = np.percentile(dat, 1)
+                    vmax = -vmin
+            im = ax.imshow(
+                dat,
+                interpolation="nearest",
+                aspect="auto",
+                vmin=vmin,
+                vmax=vmax,
+                cmap=cmap,
+            )
+            if v < 0.2:
+                ax.set_title(
+                    f"{blpol[0],blpol[1],blpol[2]}",
+                    backgroundcolor=scalarMap.cmap((np.log10(v) + 2) / 2),
+                    color="white",
+                )
+            else:
+                ax.set_title(
+                    f"{blpol[0],blpol[1],blpol[2]}",
+                    backgroundcolor=scalarMap.cmap((np.log10(v) + 2) / 2),
+                    color="black",
+                )
+            if i == 0:
+                ax.set_ylabel("Time (LST)")
+            if j == len(percentile_set) - 1:
+                ax.set_xlabel("Frequency (MHz)")
+            ax.set_xticks(xticks)
+            ax.set_xticklabels(xticklabels)
+            ax.set_yticks(yticks)
+            ax.set_yticklabels(yticklabels)
+            if i == 0:
+                ax.annotate(
+                    f"{p}th percentile",
+                    xy=(0, 0.5),
+                    xytext=(-ax.yaxis.labelpad, 0),
+                    xycoords=ax.yaxis.label,
+                    textcoords="offset points",
+                    ha="right",
+                    va="center",
+                    rotation=90,
+                    fontsize=16,
+                )
+            if j == 0:
+                ax.annotate(
+                    f"{key}",
+                    xy=(0.5, 1.15),
+                    xytext=(0, 5),
+                    xycoords="axes fraction",
+                    textcoords="offset points",
+                    ha="center",
+                    va="baseline",
+                    fontsize=18,
+                    annotation_clip=False,
+                )
+        pos = ax.get_position()
+        cbar_ax = fig.add_axes([0.91, pos.y0, 0.01, pos.height])
+        cbar = fig.colorbar(im, cax=cbar_ax)
+        if metric != "phase":
+            cbar.set_ticks([])
+    fig.suptitle(f"cross visbilities - {metric}, {pol} pol", fontsize=20)
+    if savefig is True:
+        if outfig == "":
+            print("#### Must provide value for outfig when savefig is True ####")
+        else:
+            print(f"Saving {outfig}_{pol}_{metric}.jpeg")
+            plt.savefig(f"{outfig}_{pol}_{metric}.jpeg", bbox_inches="tight")

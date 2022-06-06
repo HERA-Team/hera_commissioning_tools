@@ -556,3 +556,44 @@ def gather_source_list(catalog_path=""):
                 tup = (float(s[1]), float(s[2]), "")
                 sources.append(tup)
     return sources
+
+
+def getBlsByConnectionType(uvd, inc_autos=False, pols=["E", "N"]):
+    """
+    Simple helper function to generate a dictionary that categorizes baselines by connection type. Resulting dictionary makes it easy to extract data for all baselines of a given baseline type.
+
+    Parameters:
+    -----------
+    uvd: UVData Object
+        Any sample UVData object, used to get antenna information only.
+    inc_autos: Boolean
+        Option to include autocorrelations in the intrasnap set. Default is False.
+    pols: List
+        List of polarizations to include. Can be ['E','N'], ['E'], or ['N'].
+
+    Returns:
+    --------
+    bl_list: Dict
+        Dictionary with keys 'internode', 'intranode', 'intrasnap', and 'autos', which reference lists of all baselines of that connection type. Baselines categorized as intranode will exclude those that are also intrasnap - to get all baselines within the same node, combine these two lists.
+    """
+    nodes, antDict, inclNodes = generate_nodeDict(uvd, pols=pols)
+    bl_list = {"internode": [], "intranode": [], "intrasnap": [], "autos": []}
+    ants = uvd.get_ants()
+    for a1 in ants:
+        for a2 in ants:
+            if a1 == a2:
+                bl_list["autos"].append((a1, a2))
+                if inc_autos is False:
+                    continue
+            n1 = antDict[f"{a1}E"]["node"]
+            n2 = antDict[f"{a2}E"]["node"]
+            s1 = antDict[f"{a1}E"]["snapLocs"][0]
+            s2 = antDict[f"{a2}E"]["snapLocs"][0]
+            if n1 == n2:
+                if s1 == s2:
+                    bl_list["intrasnap"].append((a1, a2))
+                else:
+                    bl_list["intranode"].append((a1, a2))
+            else:
+                bl_list["internode"].append((a1, a2))
+    return bl_list
