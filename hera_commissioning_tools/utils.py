@@ -275,14 +275,15 @@ def generate_nodeDict(uv, pols=["E"]):
     from hera_mc import cm_hookup
 
     antnums = uv.get_ants()
-    h = cm_hookup.Hookup()
-    x = h.get_hookup("HH")
+    x = cm_hookup.get_hookup("default")
     nodes = {}
     antDict = {}
     inclNodes = []
-    for ant in antnums:
+    for key in x.keys():
+        ant = int(key.split(":")[0][2:])
+        if ant not in antnums:
+            continue
         for pol in pols:
-            key = "HH%i:A" % ant
             if x[key].get_part_from_type("node")[f"{pol}<ground"] is None:
                 continue
             n = x[key].get_part_from_type("node")[f"{pol}<ground"][1:]
