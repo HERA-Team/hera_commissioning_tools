@@ -15,6 +15,7 @@ status_colors = dict(
     calibration_maintenance="lightgreen",
     calibration_ok="green",
     calibration_triage="lime",
+    not_connected="gray",
 )
 status_abbreviations = dict(
     dish_maintenance="dish-M",
@@ -26,6 +27,7 @@ status_abbreviations = dict(
     calibration_maintenance="cal-M",
     calibration_ok="cal-OK",
     calibration_triage="cal-Tri",
+    not_connected="No-Con",
 )
 
 
