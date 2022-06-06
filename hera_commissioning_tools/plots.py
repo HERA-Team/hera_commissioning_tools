@@ -1,4 +1,4 @@
-# Licensed under the MIT License
+"""Licensed under the MIT License"""
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -41,13 +41,13 @@ def plot_autos(
     title="",
     dtype="sky",
 ):
-
     """
+
     Function to plot autospectra of all antennas, with a row for each node, sorted by SNAP and within that by SNAP
     input. Spectra are chosen from a time in the middle of the observation.
 
     Parameters:
-    ---------
+    -----------
     uvdx: UVData Object
         Data for the XX polarization.
     uvdy: UVData Object
@@ -64,6 +64,10 @@ def plot_autos(
         Option to write out the figure.
     title: String
         Path to full figure name, required if savefig is True.
+
+    Returns:
+    --------
+    None
 
     """
     from astropy.time import Time
@@ -378,7 +382,7 @@ def plot_wfs(
         cbar_ax = fig.add_axes([0.91, pos.y0, 0.01, pos.height])
         cbar = fig.colorbar(im, cax=cbar_ax)
         cbar.set_label(f"Node {n}", rotation=270, labelpad=15)
-    if savefig == True:
+    if savefig is True:
         plt.savefig(title, bbox_inches="tight", dpi=100)
     plt.show()
     plt.close()
@@ -397,6 +401,7 @@ def auto_waterfall_lineplot(
     mean_sub=False,
 ):
     """
+
     Function to plot an auto waterfall, with two lineplots underneath: one single spectrum from the middle of the
     observation, and one spectrum that is the average over the night.
 
