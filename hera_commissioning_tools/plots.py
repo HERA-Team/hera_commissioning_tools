@@ -32,8 +32,7 @@ status_abbreviations = dict(
 
 
 def plot_autos(
-    uvdx,
-    uvdy,
+    uvd,
     wrongAnts=[],
     ylim=None,
     logscale=True,
@@ -48,10 +47,8 @@ def plot_autos(
 
     Parameters:
     -----------
-    uvdx: UVData Object
-        Data for the XX polarization.
-    uvdy: UVData Object
-        Data for the YY polarization.
+    uvd: UVData Object
+        UVData object containing data to plot.
     wrongAnts: List
         Optional, list of antennas that are identified as observing the wrong datatype (seeing the sky when we are
         trying to observe load, for example) or are severely broken/dead. These antennas will be greyed out and
@@ -73,10 +70,10 @@ def plot_autos(
     from astropy.time import Time
     from hera_mc import cm_active
 
-    nodes, antDict, inclNodes = utils.generate_nodeDict(uvdx)
-    sorted_ants, sortedSnapLocs, sortedSnapInputs = utils.sort_antennas(uvdx)
-    freqs = (uvdx.freq_array[0]) * 10 ** (-6)
-    times = uvdx.time_array
+    nodes, antDict, inclNodes = utils.generate_nodeDict(uvd)
+    sorted_ants, sortedSnapLocs, sortedSnapInputs = utils.sort_antennas(uvd)
+    freqs = (uvd.freq_array[0]) * 10 ** (-6)
+    times = uvd.time_array
     maxants = 0
     for node in nodes:
         n = len(nodes[node]["ants"])
@@ -90,8 +87,7 @@ def plot_autos(
     jd = times[t_index]
     utc = Time(jd, format="jd").datetime
 
-    h = cm_active.ActiveData(at_date=jd)
-    h.load_apriori()
+    h = cm_active.get_active(at_date=jd, float_format="jd")
 
     xlim = (np.min(freqs), np.max(freqs))
 
@@ -116,21 +112,21 @@ def plot_autos(
         for _, a in enumerate(sorted_ants):
             if a not in ants:
                 continue
-            status = h.apriori[f"HH{a}:A"].status
+            status = utils.get_ant_status(h, a)
             ax = axes[i, j]
             ax.set_xlim(xlim)
             ax.set_ylim(ylim)
             if logscale is True:
                 (px,) = ax.plot(
                     freqs,
-                    10 * np.log10(np.abs(uvdx.get_data((a, a))[t_index])),
+                    10 * np.log10(np.abs(uvd.get_data((a, a, "xx"))[t_index])),
                     color="r",
                     alpha=0.75,
                     linewidth=1,
                 )
                 (py,) = ax.plot(
                     freqs,
-                    10 * np.log10(np.abs(uvdy.get_data((a, a))[t_index])),
+                    10 * np.log10(np.abs(uvd.get_data((a, a, "yy"))[t_index])),
                     color="b",
                     alpha=0.75,
                     linewidth=1,
@@ -138,14 +134,14 @@ def plot_autos(
             else:
                 (px,) = ax.plot(
                     freqs,
-                    np.abs(uvdx.get_data((a, a))[t_index]),
+                    np.abs(uvd.get_data((a, a, "xx"))[t_index]),
                     color="r",
                     alpha=0.75,
                     linewidth=1,
                 )
                 (py,) = ax.plot(
                     freqs,
-                    np.abs(uvdy.get_data((a, a))[t_index]),
+                    np.abs(uvd.get_data((a, a, "yy"))[t_index]),
                     color="b",
                     alpha=0.75,
                     linewidth=1,
@@ -206,7 +202,7 @@ def plot_wfs(
     uvd_diff=None,
     metric=None,
     title="",
-    dtype=None,
+    dtype="sky",
 ):
     """
     Function to plot auto waterfalls of all antennas, with a row for each node, sorted by SNAP and within that by
@@ -279,6 +275,10 @@ def plot_wfs(
         vmaxAuto = 7.52
         vminSubAuto = -0.0005
         vmaxSubAuto = 0.0005
+    else:
+        print(
+            "##################### dtype must be one of sky, load, or noise #####################"
+        )
     if vmin is None:
         vmin = vminAuto
     if vmax is None:
@@ -299,8 +299,7 @@ def plot_wfs(
     t_index = 0
     jd = times[t_index]
 
-    h = cm_active.ActiveData(at_date=jd)
-    h.load_apriori()
+    h = cm_active.get_active(at_date=jd, float_format="jd")
     ptitle = 1.92 / (Yside * 3)
     fig, axes = plt.subplots(Yside, Nside, figsize=(16, Yside * 3))
     if pol == 0:
@@ -316,7 +315,7 @@ def plot_wfs(
         for _, a in enumerate(sorted_ants):
             if a not in ants:
                 continue
-            status = h.apriori[f"HH{a}:A"].status
+            status = utils.get_ant_status(h, a)
             abb = status_abbreviations[status]
             ax = axes[i, j]
             if metric is None:
@@ -391,7 +390,7 @@ def plot_wfs(
 def auto_waterfall_lineplot(
     uv,
     ant,
-    jd,
+    jd=None,
     vmin=1e6,
     vmax=1e8,
     title="",
@@ -440,8 +439,9 @@ def auto_waterfall_lineplot(
     import matplotlib.gridspec as gridspec
     from hera_mc import cm_active
 
-    h = cm_active.ActiveData(at_date=jd)
-    h.load_apriori()
+    jd = np.floor(uv.time_array[0])
+    h = cm_active.get_active(at_date=jd, float_format="jd")
+    status = utils.get_ant_status(h, ant)
 
     freq = uv.freq_array[0] * 1e-6
     if size == "large":
@@ -478,12 +478,12 @@ def auto_waterfall_lineplot(
             ms = np.subtract(np.log10(dat), np.nanmean(np.log10(dat), axis=0))
             im = plt.imshow(ms, aspect="auto", vmin=vmin, vmax=vmax)
         if type(ant) == int:
-            status = h.apriori[f"HH{ant}:A"].status
+            status = utils.get_ant_status(h, ant)
             abb = status_abbreviations[status]
         else:
             status = [
-                h.apriori[f"HH{ant[0]}:A"].status,
-                h.apriori[f"HH{ant[1]}:A"].status,
+                utils.get_ant_status(h, ant[0]),
+                utils.get_ant_status(h, ant[1]),
             ]
             abb = [status_abbreviations[s] for s in status]
         waterfall.set_title(f"{pol_dirs[p]} pol")

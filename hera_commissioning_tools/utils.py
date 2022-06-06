@@ -184,25 +184,25 @@ def get_use_ants(uvd, statuses, jd):
     return use_ants
 
 
-# def read_template(template_path):
-#     """
-#     Function to read in template files.
+def read_template(template_path):
+    """
+    Function to read in template files.
 
-#     Parameters:
-#     -----------
-#     template_path: String
-#         Path to template file.
+    Parameters:
+    -----------
+    template_path: String
+        Path to template file.
 
-#     Returns:
-#     --------
-#     data: Dict
-#         Dictionary containing template data.
-#     """
-#     import json
+    Returns:
+    --------
+    data: Dict
+        Dictionary containing template data.
+    """
+    import json
 
-#     with open(template_path) as f:
-#         data = json.load(f)
-#     return data
+    with open(template_path) as f:
+        data = json.load(f)
+    return data
 
 
 def detectWrongConnectionAnts(uvd, dtype="load"):
@@ -353,10 +353,9 @@ def sort_antennas(uv, use_ants="all", pols=["E"]):
     sortedAntennas = []
     sortedSnapLocs = []
     sortedSnapInputs = []
+    x = cm_hookup.get_hookup("default")
     for n in sorted(inclNodes):
         snappairs = []
-        h = cm_hookup.Hookup()
-        x = h.get_hookup("HH")
         for ant in nodes[n]["ants"]:
             if len(pols) == 2:
                 antnum = ant[0:-1]
@@ -385,12 +384,13 @@ def sort_antennas(uv, use_ants="all", pols=["E"]):
         for loc in locs:
             ants = snapLocs[loc]
             inputpairs = []
-            for ant in ants:
+            for key in x.keys():
+                ant = int(key.split(":")[0][2:])
+                if ant not in ants:
+                    continue
                 if len(pols) == 2:
-                    key = "HH%s:A" % (ant[:-1])
                     pol = ant[-1]
                 else:
-                    key = "HH%i:A" % ant
                     pol = pols[0]
                 pair = (
                     int(x[key].hookup[f"{pol}<ground"][-2].downstream_input_port[1:]),
