@@ -1060,3 +1060,116 @@ def plot_antenna_positions(uv, badAnts=[], flaggedAnts={}, use_ants="all"):
     plt.ylabel("North")
     plt.show()
     plt.close()
+
+
+def plot_lst_coverage(uvd):
+    """
+    Plots the LST and JD coverage for a particular night.
+
+    Parameters
+    ----------
+    uvd: UVData Object
+        Object containing a whole night of data, used to extract the time array.
+
+    Returns:
+    ----------
+    None
+
+    """
+    from astropy.coordinates import EarthLocation
+    from astropy.time import Time
+
+    jds = np.unique(uvd.time_array)
+    alltimes = np.arange(np.floor(jds[0]), np.ceil(jds[0]), jds[2] - jds[1])
+    df = jds[2] - jds[1]
+    truetimes = [np.min(np.abs(jds - jd)) <= df * 0.6 for jd in alltimes]
+    usetimes = np.tile(np.asarray(truetimes), (20, 1))
+
+    fig = plt.figure(figsize=(20, 2))
+    ax = fig.add_subplot()
+    im = ax.imshow(
+        usetimes, aspect="auto", cmap="RdYlGn", vmin=0, vmax=1, interpolation="nearest"
+    )
+    fig.colorbar(im)
+    ax.set_yticklabels([])
+    ax.set_yticks([])
+    if len(alltimes) <= 15:
+        xticks = [int(i) for i in np.linspace(0, len(alltimes) - 1, len(alltimes))]
+    else:
+        xticks = [int(i) for i in np.linspace(0, len(alltimes) - 1, 14)]
+    ax.set_xticks(xticks)
+    ax.set_xticklabels(np.around(alltimes[xticks], 2))
+    ax.set_xlabel("JD")
+    ax.set_title("LST (hours)")
+    ax2 = ax.twiny()
+    ax2.set_xticks(xticks)
+    jds = alltimes[xticks]
+    lstlabels = []
+    loc = EarthLocation.from_geocentric(*uvd.telescope_location, unit="m")
+    for jd in jds:
+        t = Time(jd, format="jd", location=loc)
+        lstlabels.append(t.sidereal_time("mean").hour)
+    ax2.set_xticklabels(np.around(lstlabels, 2))
+    ax2.set_label("LST (hours)")
+    ax2.tick_params(labelsize=12)
+    plt.show()
+    plt.close()
+
+
+def plotEvenOddWaterfalls(uvd_sum, uvd_diff):
+    """Plot Even/Odd visibility ratio waterfall.
+
+    Parameters
+    ----------
+    uvd_sum : UVData Object
+        Object containing autos from sum files
+    uvd_diff : UVData Object
+        Object containing autos from diff files
+
+    Returns
+    -------
+    None
+
+    """
+    import copy
+    import matplotlib
+
+    nants = len(uvd_sum.get_ants())
+    freqs = uvd_sum.freq_array[0] * 1e-6
+    nfreqs = len(freqs)
+    lsts = np.unique(uvd_sum.lst_array * 3.819719)
+    sm = np.abs(uvd_sum.data_array[:, 0, :, 0])
+    df = np.abs(uvd_diff.data_array[:, 0, :, 0])
+    sm = np.r_[sm, np.nan + np.zeros((-len(sm) % nants, len(freqs)))]
+    sm = np.nanmean(sm.reshape(-1, nants, nfreqs), axis=1)
+    df = np.r_[df, np.nan + np.zeros((-len(df) % nants, len(freqs)))]
+    df = np.nanmean(df.reshape(-1, nants, nfreqs), axis=1)
+
+    evens = (sm + df) / 2
+    odds = (sm - df) / 2
+    rat = np.divide(evens, odds)
+    rat = np.nan_to_num(rat)
+    fig = plt.figure(figsize=(14, 3))
+    ax = fig.add_subplot()
+    my_cmap = copy.deepcopy(matplotlib.cm.get_cmap("viridis"))
+    my_cmap.set_under("r")
+    my_cmap.set_over("r")
+    im = plt.imshow(
+        rat, aspect="auto", vmin=0.5, vmax=2, cmap=my_cmap, interpolation="nearest"
+    )
+    fig.colorbar(im)
+    ax.set_title("Even/odd Visibility Ratio")
+    ax.set_xlabel("Frequency (MHz)")
+    ax.set_ylabel("Time (LST)")
+    yticks = [int(i) for i in np.linspace(len(lsts) - 1, 0, 4)]
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(np.around(lsts[yticks], 1))
+    xticks = [int(i) for i in np.linspace(0, len(freqs) - 1, 10)]
+    ax.set_xticks(xticks)
+    ax.set_xticklabels(np.around(freqs[xticks], 0))
+    i = 192
+    while i < len(freqs):
+        ax.axvline(i, color="w")
+        i += 192
+    plt.show()
+    plt.close()
