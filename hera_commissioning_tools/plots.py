@@ -41,6 +41,7 @@ def plot_autos(
     title="",
     dtype="sky",
 ):
+
     """
     Function to plot autospectra of all antennas, with a row for each node, sorted by SNAP and within that by SNAP
     input. Spectra are chosen from a time in the middle of the observation.
@@ -90,7 +91,7 @@ def plot_autos(
 
     xlim = (np.min(freqs), np.max(freqs))
 
-    if ylim == None:
+    if ylim is None:
         if dtype == "sky":
             ylim = [60, 80]
         elif dtype == "load":
@@ -115,7 +116,7 @@ def plot_autos(
             ax = axes[i, j]
             ax.set_xlim(xlim)
             ax.set_ylim(ylim)
-            if logscale == True:
+            if logscale is True:
                 (px,) = ax.plot(
                     freqs,
                     10 * np.log10(np.abs(uvdx.get_data((a, a))[t_index])),
@@ -179,7 +180,7 @@ def plot_autos(
             f"Node {n}", (1.1, 0.3), xycoords="axes fraction", rotation=270
         )
 
-    if savefig == True:
+    if savefig is True:
         plt.savefig(title)
         plt.show()
     else:
@@ -207,8 +208,8 @@ def plot_wfs(
     Function to plot auto waterfalls of all antennas, with a row for each node, sorted by SNAP and within that by
     SNAP input.
 
-    Parameters
-    ---------
+    Parameters:
+    -----------
     uvd: UVData Object
         UVData object containing all sum data to plot.
     pol: String
@@ -244,7 +245,7 @@ def plot_wfs(
         parameter to None.
 
     Returns:
-    -------
+    --------
     None
 
     """
@@ -274,13 +275,13 @@ def plot_wfs(
         vmaxAuto = 7.52
         vminSubAuto = -0.0005
         vmaxSubAuto = 0.0005
-    if vmin == None:
+    if vmin is None:
         vmin = vminAuto
-    if vmax == None:
+    if vmax is None:
         vmax = vmaxAuto
-    if vminSub == None:
+    if vminSub is None:
         vminSub = vminSubAuto
-    if vmaxSub == None:
+    if vmaxSub is None:
         vmaxSub = vmaxSubAuto
 
     for node in nodes:
@@ -299,9 +300,9 @@ def plot_wfs(
     ptitle = 1.92 / (Yside * 3)
     fig, axes = plt.subplots(Yside, Nside, figsize=(16, Yside * 3))
     if pol == 0:
-        fig.suptitle(f"North Polarization", fontsize=14, y=1 + ptitle)
+        fig.suptitle("North Polarization", fontsize=14, y=1 + ptitle)
     else:
-        fig.suptitle(f"East Polarization", fontsize=14, y=1 + ptitle)
+        fig.suptitle("East Polarization", fontsize=14, y=1 + ptitle)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
     fig.subplots_adjust(left=0, bottom=0.1, right=0.9, top=1, wspace=0.1, hspace=0.3)
 
@@ -314,8 +315,8 @@ def plot_wfs(
             status = h.apriori[f"HH{a}:A"].status
             abb = status_abbreviations[status]
             ax = axes[i, j]
-            if metric == None:
-                if logscale == True:
+            if metric is None:
+                if logscale is True:
                     dat = np.log10(np.abs(uvd.get_data(a, a, polnames[pol])))
                 else:
                     dat = np.abs(uvd.get_data(a, a, polnames[pol]))
@@ -326,7 +327,7 @@ def plot_wfs(
                     dat = (dat + dat_diff) / 2
                 elif metric == "odd":
                     dat = (dat - dat_diff) / 2
-                if logscale == True:
+                if logscale is True:
                     dat = np.log10(np.abs(dat))
             if mean_sub:
                 ms = np.subtract(dat, np.nanmean(dat, axis=0))
@@ -400,7 +401,7 @@ def auto_waterfall_lineplot(
     observation, and one spectrum that is the average over the night.
 
     Parameters:
-    ---------
+    -----------
     uv: UVData Object
         Observation data.
     ant: Int or Tuple
@@ -426,12 +427,13 @@ def auto_waterfall_lineplot(
         Option to plot the mean-subtracted visibilities instead of the raw. Default is False.
 
     Returns:
-    -------
+    --------
     None
 
     """
     from matplotlib import colors
     import matplotlib.gridspec as gridspec
+    from hera_mc import cm_active
 
     h = cm_active.ActiveData(at_date=jd)
     h.load_apriori()
@@ -463,7 +465,7 @@ def auto_waterfall_lineplot(
             print("#########################################")
             plt.close()
             return
-        if mean_sub == False:
+        if mean_sub is False:
             im = plt.imshow(
                 d, norm=colors.LogNorm(), aspect="auto", vmin=vmin, vmax=vmax
             )
