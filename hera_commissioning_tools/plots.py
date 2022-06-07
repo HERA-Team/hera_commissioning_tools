@@ -1625,7 +1625,7 @@ def plotCorrMatrices(
     vmax=1,
     nodes="auto",
     logScale=False,
-    plotRatios=False,
+    crossPolCheck=False,
     incAntLabels=True,
 ):
     """
@@ -1647,6 +1647,10 @@ def plotCorrMatrices(
         Dictionary containing the nodes (and their constituent antennas) to include in the matrix. Formatted as nodes[Node #][Ant List, Snap # List, Snap Location List].
     logScale: Bool
         Option to put colormap on a logarithmic scale. Default is False.
+    crossPolCheck: Bool
+        Option to do a check for cross-polarized antennas - will plot the difference between polarizations instead of each of the 4 standard pols.
+    incAntLabels: Bool
+        Option to include antenna number labels along the side of the matrices.
     """
     from matplotlib import colors
     from astropy.coordinates import EarthLocation
@@ -1659,8 +1663,8 @@ def plotCorrMatrices(
     fig, axs = plt.subplots(2, 2, figsize=(20, 20))
     dirs = ["NN", "EE", "NE", "EN"]
     cmap = "plasma"
-    if plotRatios is True:
-        pols = ["xx-xy", "yy-xy", "xx-yx", "yy-yx"]
+    if crossPolCheck is True:
+        pols = ["NN-NE", "NN-EN", "EE-NE", "EE-EN"]
         dirs = pols
         vmin = -1
         cmap = "seismic"
