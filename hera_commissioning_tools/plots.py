@@ -1528,7 +1528,7 @@ def plot_single_matrix(
             (bottom(np.linspace(0, 1, pbottom)), top(np.linspace(0, 1, ptop)))
         )
         newcmp = colors.ListedColormap(newcolors, name="linlog")
-        axs.imshow(
+        im = axs.imshow(
             data,
             cmap=newcmp,
             origin="upper",
@@ -1540,7 +1540,7 @@ def plot_single_matrix(
         print("ERROR: dataRef parameter must be provided when linlog set to True")
         print("#################################################################")
     elif logScale is True:
-        axs.imshow(
+        im = axs.imshow(
             data,
             cmap=cmap,
             origin="upper",
@@ -1548,7 +1548,7 @@ def plot_single_matrix(
             norm=colors.LogNorm(vmin=vminIn, vmax=vmaxIn),
         )
     else:
-        axs.imshow(
+        im = axs.imshow(
             data,
             cmap=cmap,
             origin="upper",
@@ -1597,6 +1597,7 @@ def plot_single_matrix(
     axs.set_yticklabels(antnums, fontsize=6)
     cbar_ax = fig.add_axes([1, 0.05, 0.015, 0.89])
     cbar_ax.set_xlabel(r"$|C_{ij}|$", rotation=0, fontsize=18)
+    fig.colorbar(im, cax=cbar_ax, format="%.2f")
     fig.subplots_adjust(top=1.28, wspace=0.05, hspace=1.1)
     fig.tight_layout(pad=2)
     axs.set_title(title)
