@@ -1232,6 +1232,8 @@ def plotCrossWaterfallsByCorrValue(
             v = np.percentile(vals, p)
             vind = np.argmin(abs(vals - v))
             bl = perBlSummary[pol][f"{key}_bls"][vind]
+            if type(bl[0]) == int:
+                bl = (f"{bl[0]}{pol[0]}", f"{bl[1]}{pol[1]}")
             if pol == "allpols":
                 blpol = (int(bl[0][:-1]), int(bl[1][:-1]), f"{bl[0][-1]}{bl[1][-1]}")
             else:
@@ -1455,7 +1457,7 @@ def plot_single_matrix(
     vminIn=0,
     vmaxIn=1,
     logScale=False,
-    pols=["E", "N"],
+    pols=["EE", "NN", "EN", "NE"],
     savefig=False,
     outfig="",
     cmap="plasma",
@@ -1503,7 +1505,13 @@ def plot_single_matrix(
     from astropy.coordinates import EarthLocation
     from astropy.time import Time
 
-    nodeDict, antDict, inclNodes = utils.generate_nodeDict(uv, pols=pols)
+    if pols == ["EE"]:
+        antpols = ["E"]
+    elif pols == ["NN"]:
+        antpols = ["N"]
+    else:
+        antpols = ["N", "E"]
+    nodeDict, antDict, inclNodes = utils.generate_nodeDict(uv, pols=antpols)
     nantsTotal = len(uv.get_ants())
     fig, axs = plt.subplots(1, 1, figsize=(16, 16))
     loc = EarthLocation.from_geocentric(*uv.telescope_location, unit="m")
@@ -1511,7 +1519,7 @@ def plot_single_matrix(
     t = Time(jd, format="jd", location=loc)
     t.format = "fits"
     if antnums == "auto":
-        antnums, _, _ = utils.sort_antennas(uv, "all", pols=pols)
+        antnums, _, _ = utils.sort_antennas(uv, "all", pols=antpols)
     nantsTotal = len(antnums)
     if nantsTotal != len(data):
         print("##### WARNING: NUMBER OF ANTENNAS DOES NOT MATCH MATRIX SIZE #####")
