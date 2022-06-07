@@ -611,6 +611,7 @@ def calc_corr_metric(
     nanDiffs=False,
     interleave="even_odd",
     divideByAbs=True,
+    crossPolCheck=False,
 ):
     """
     Function to calculate the correlation metric: even x conj(odd) / (abs(even) x abs(odd)). The resulting 2x2 array will have one entry per baseline, with each row and column representing an antenna. The ordering of antennas along the axes will be sorted by node number, within that by SNAP number, and within that by SNAP input number.
@@ -638,6 +639,8 @@ def calc_corr_metric(
         Sets the interleave interval. Options are 'even_odd' or 'adjacent_integration'. When set to 'even_odd', the evens and odds in the metric calculation are set using the sums and diffs. When set to 'adjacent_integration', adjacent integrations are used in place of the evens and odds for the interleave.
     divideByAbs: Boolean
         Option to divide the metric by the absolute value of the evens and odds. Default is True. Setting to False will result in an un-normalized metric.
+    crossPolCheck: Boolean
+        Option to do a check for cross-polarized antennas - will calculate the difference between polarizations in addition to each of the 4 standard pols.
 
 
     Returns:
@@ -768,6 +771,22 @@ def calc_corr_metric(
                 x[key2].hookup[f"{p2}<ground"][-1].downstream_input_port[-1],
                 ant2,
             )[0]
+            if crossPolCheck:
+                if len(pols) == 4:
+                    perPolDict["NN-NE"] = np.subtract(
+                        perPolDict["NN"], perPolDict["NE"]
+                    )
+                    perPolDict["NN-EN"] = np.subtract(
+                        perPolDict["NN"], perPolDict["EN"]
+                    )
+                    perPolDict["EE-NE"] = np.subtract(
+                        perPolDict["EE"], perPolDict["NE"]
+                    )
+                    perPolDict["EE-EN"] = np.subtract(
+                        perPolDict["EE"], perPolDict["EN"]
+                    )
+                else:
+                    print("Can only calculate differences if cross pols were specified")
             if ant1 != ant2:
                 perBlSummary[pol]["all_vals"].append(np.nanmean(product, axis=0))
                 perBlSummary[pol]["all_bls"].append((a1, a2))
