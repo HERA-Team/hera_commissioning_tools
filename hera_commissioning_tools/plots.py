@@ -1454,8 +1454,8 @@ def plot_single_matrix(
     antnums="auto",
     linlog=False,
     dataRef=None,
-    vminIn=0,
-    vmaxIn=1,
+    vmin=0,
+    vmax=1,
     logScale=False,
     pols=["EE", "NN", "EN", "NE"],
     savefig=False,
@@ -1480,9 +1480,9 @@ def plot_single_matrix(
         Option to plot the data on a linlog scale, such that the colorbar is on a linear scale over some range of reference metric values set by the 99th percentile of values in the provided dataRef, and on a log scale over the remainder of values. The intended use is for dataRef to represent the expected noise of the data. Default is False.
     dataRef: numpy array or None
         2x2 numpy array containing reference metric values to use when setting the linear scale range when linlog is set to True. This parameter is required to use the linlog function. Default is None.
-    vminIn: Int
+    vmin: Int
         Minimum colorbar value. Default is 0.
-    vmaxIn: Int
+    vmax: Int
         Maximum colorbar value. Default is 1.
     logScale: Boolean
         Option to plot the colorbar on a logarithmic scale. Default is False.
@@ -1553,7 +1553,7 @@ def plot_single_matrix(
             cmap=cmap,
             origin="upper",
             extent=[0.5, nantsTotal + 0.5, 0.5, nantsTotal + 0.5],
-            norm=colors.LogNorm(vmin=vminIn, vmax=vmaxIn),
+            norm=colors.LogNorm(vmin=vmin, vmax=vmax),
         )
     else:
         im = axs.imshow(
@@ -1561,8 +1561,8 @@ def plot_single_matrix(
             cmap=cmap,
             origin="upper",
             extent=[0.5, nantsTotal + 0.5, 0.5, nantsTotal + 0.5],
-            vmin=vminIn,
-            vmax=vmaxIn,
+            vmin=vmin,
+            vmax=vmax,
         )
     axs.set_xticks([])
     axs.set_yticks([])
@@ -1612,3 +1612,130 @@ def plot_single_matrix(
     if savefig is True:
         plt.savefig(outfig, bbox_inches="tight")
     plt.show()
+
+
+def plotCorrMatrices(
+    uv,
+    data,
+    pols=["EE", "NN", "EN", "NE"],
+    vmin=0,
+    vmax=1,
+    nodes="auto",
+    logScale=False,
+    plotRatios=False,
+    incAntLabels=True,
+):
+    """
+    Plots a matrix representing the phase correlation of each baseline.
+
+    Parameters:
+    -----------
+    uv: UVData Object
+        Observation used for calculating the correlation metric
+    data: Dict
+        Dictionary containing the correlation metric for each baseline and each polarization. Formatted as data[polarization]  [ant1,ant2]
+    pols: List
+        Polarizations to plot. Can include any polarization strings accepted by pyuvdata.
+    vmin: float
+        Lower limit of colorbar. Default is 0.
+    vmax: float
+        Upper limit of colorbar. Default is 1.
+    nodes: Dict
+        Dictionary containing the nodes (and their constituent antennas) to include in the matrix. Formatted as nodes[Node #][Ant List, Snap # List, Snap Location List].
+    logScale: Bool
+        Option to put colormap on a logarithmic scale. Default is False.
+    """
+    from matplotlib import colors
+    from astropy.coordinates import EarthLocation
+    from astropy.time import Time
+
+    if nodes == "auto":
+        nodeDict, antDict, inclNodes = utils.generate_nodeDict(uv)
+    antnumsAll, sortedSnapLocs, sortedSnapInputs = utils.sort_antennas(uv)
+    nantsTotal = len(antnumsAll)
+    print(f"nantsTotal = {nantsTotal}")
+    fig, axs = plt.subplots(2, 2, figsize=(20, 20))
+    dirs = ["NN", "EE", "NE", "EN"]
+    cmap = "plasma"
+    if plotRatios is True:
+        pols = ["xx-xy", "yy-xy", "xx-yx", "yy-yx"]
+        dirs = pols
+        vmin = -1
+        cmap = "seismic"
+    loc = EarthLocation.from_geocentric(*uv.telescope_location, unit="m")
+    jd = uv.time_array[0]
+    t = Time(jd, format="jd", location=loc)
+    lst = round(t.sidereal_time("mean").hour, 2)
+    t.format = "fits"
+    i = 0
+    for p in range(len(pols)):
+        if p >= 2:
+            i = 1
+        pol = pols[p]
+        if logScale is True:
+            im = axs[i][p % 2].imshow(
+                data[pol],
+                cmap=cmap,
+                origin="upper",
+                extent=[0.5, nantsTotal + 0.5, 0.5, nantsTotal + 0.5],
+                norm=colors.LogNorm(vmin=vmin, vmax=vmax),
+            )
+        else:
+            im = axs[i][p % 2].imshow(
+                data[pol],
+                cmap=cmap,
+                origin="upper",
+                extent=[0.5, nantsTotal + 0.5, 0.5, nantsTotal + 0.5],
+                vmin=vmin,
+                vmax=vmax,
+            )
+        if incAntLabels:
+            axs[i][p % 2].set_xticks(np.arange(0, nantsTotal) + 1)
+            axs[i][p % 2].set_xticklabels(antnumsAll, rotation=90, fontsize=6)
+            axs[i][p % 2].xaxis.set_ticks_position("top")
+        axs[i][p % 2].set_title("polarization: " + dirs[p] + "\n")
+        n = 0
+        for node in sorted(inclNodes):
+            n += len(nodeDict[node]["ants"])
+            axs[i][p % 2].axhline(len(antnumsAll) - n + 0.5, lw=4)
+            axs[i][p % 2].axvline(n + 0.5, lw=4)
+            axs[i][p % 2].text(n - len(nodeDict[node]["ants"]) / 2, -1.2, node)
+        axs[i][p % 2].text(
+            0.42, -0.05, "Node Number", transform=axs[i][p % 2].transAxes
+        )
+    n = 0
+    for node in sorted(inclNodes):
+        n += len(nodeDict[node]["ants"])
+        axs[0][1].text(
+            nantsTotal + 1, nantsTotal - n + len(nodeDict[node]["ants"]) / 2, node
+        )
+        axs[1][1].text(
+            nantsTotal + 1, nantsTotal - n + len(nodeDict[node]["ants"]) / 2, node
+        )
+    axs[0][1].text(
+        1.05, 0.4, "Node Number", rotation=270, transform=axs[0][1].transAxes
+    )
+    axs[0][1].set_yticklabels([])
+    axs[0][1].set_yticks([])
+    axs[1][1].set_yticklabels([])
+    axs[1][1].set_yticks([])
+    if incAntLabels:
+        axs[0][0].set_yticks(np.arange(nantsTotal, 0, -1))
+        axs[0][0].set_yticklabels(antnumsAll, fontsize=6)
+        axs[1][0].set_yticks(np.arange(nantsTotal, 0, -1))
+        axs[1][0].set_yticklabels(antnumsAll, fontsize=6)
+    axs[1][0].set_ylabel("Antenna Number")
+    axs[0][0].set_ylabel("Antenna Number")
+    axs[1][1].text(
+        1.05, 0.4, "Node Number", rotation=270, transform=axs[1][1].transAxes
+    )
+    cbar_ax = fig.add_axes([0.98, 0.18, 0.015, 0.6])
+    cbar_ax.set_xlabel("|V|", rotation=0)
+    fig.colorbar(im, cax=cbar_ax)
+    fig.suptitle(
+        "Correlation Matrix - JD: %s, LST: %.0fh" % (str(jd), np.round(lst, 0))
+    )
+    fig.subplots_adjust(top=1.28, wspace=0.05, hspace=1.1)
+    plt.tight_layout()
+    plt.show()
+    plt.close()
