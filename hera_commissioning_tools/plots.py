@@ -1445,6 +1445,8 @@ def plotTimeDifferencedSumWaterfalls(
     fig.suptitle(norm)
     if savefig is True:
         plt.savefig(outfig)
+    plt.show()
+    plt.close()
     return uvd, sdiffs
 
 
@@ -1612,6 +1614,7 @@ def plot_single_matrix(
     if savefig is True:
         plt.savefig(outfig, bbox_inches="tight")
     plt.show()
+    plt.close()
 
 
 def plotCorrMatrices(
@@ -1653,7 +1656,6 @@ def plotCorrMatrices(
         nodeDict, antDict, inclNodes = utils.generate_nodeDict(uv)
     antnumsAll, sortedSnapLocs, sortedSnapInputs = utils.sort_antennas(uv)
     nantsTotal = len(antnumsAll)
-    print(f"nantsTotal = {nantsTotal}")
     fig, axs = plt.subplots(2, 2, figsize=(20, 20))
     dirs = ["NN", "EE", "NE", "EN"]
     cmap = "plasma"
@@ -1693,6 +1695,8 @@ def plotCorrMatrices(
             axs[i][p % 2].set_xticks(np.arange(0, nantsTotal) + 1)
             axs[i][p % 2].set_xticklabels(antnumsAll, rotation=90, fontsize=6)
             axs[i][p % 2].xaxis.set_ticks_position("top")
+        else:
+            axs[i][p % 2].set_xticks([])
         axs[i][p % 2].set_title("polarization: " + dirs[p] + "\n")
         n = 0
         for node in sorted(inclNodes):
@@ -1724,6 +1728,9 @@ def plotCorrMatrices(
         axs[0][0].set_yticklabels(antnumsAll, fontsize=6)
         axs[1][0].set_yticks(np.arange(nantsTotal, 0, -1))
         axs[1][0].set_yticklabels(antnumsAll, fontsize=6)
+    else:
+        axs[0][0].set_yticks([])
+        axs[1][0].set_yticks([])
     axs[1][0].set_ylabel("Antenna Number")
     axs[0][0].set_ylabel("Antenna Number")
     axs[1][1].text(
@@ -1738,4 +1745,4 @@ def plotCorrMatrices(
     fig.subplots_adjust(top=1.28, wspace=0.05, hspace=1.1)
     plt.tight_layout()
     plt.show()
-    plt.close()
+    plt.close("all")
