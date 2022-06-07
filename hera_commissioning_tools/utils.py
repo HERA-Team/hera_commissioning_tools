@@ -329,14 +329,15 @@ def sort_antennas(uv, use_ants="all", pols=["E"]):
         for loc in locs:
             ants = snapLocs[loc]
             inputpairs = []
-            for key in x.keys():
-                ant = int(key.split(":")[0][2:])
+            for ant in ants:
                 if ant not in ants:
                     continue
                 if len(pols) == 2:
                     pol = ant[-1]
+                    key = get_ant_key(x, int(ant[0:-1]))
                 else:
                     pol = pols[0]
+                    key = get_ant_key(x, ant)
                 pair = (
                     int(x[key].hookup[f"{pol}<ground"][-2].downstream_input_port[1:]),
                     ant,
@@ -597,3 +598,174 @@ def getBlsByConnectionType(uvd, inc_autos=False, pols=["E", "N"]):
             else:
                 bl_list["internode"].append((a1, a2))
     return bl_list
+
+
+def calc_corr_metric(
+    uvd_sum,
+    uvd_diff,
+    use_ants="all",
+    norm="abs",
+    freq_inds=[],
+    time_inds=[],
+    pols=["EE", "NN", "EN", "NE"],
+    nanDiffs=False,
+    interleave="even_odd",
+    divideByAbs=True,
+):
+    """
+    Function to calculate the correlation metric: even x conj(odd) / (abs(even) x abs(odd)). The resulting 2x2 array will have one entry per baseline, with each row and column representing an antenna. The ordering of antennas along the axes will be sorted by node number, within that by SNAP number, and within that by SNAP input number.
+
+
+    Parameters:
+    -----------
+    uvd_sum: UVData Object
+        Sum file data.
+    uvd_diff: UVData Object
+        Diff file data.
+    use_ants: List or 'all'
+        List of antennas to use, or set to 'all' to include all antennas.
+    norm: String
+        Can be 'abs', 'real', 'imag', or 'max', which indicate to take the absolute value, real component, imaginary component, or maximum value of the metric, respectively.
+    freq_inds: List
+        Frequency indices used to clip the data. Format should be [minimum frequency index, maximum frequency index]. The data will be averaged over all frequencies between the two indices. The default is [], which means the metric will average over all frequencies.
+    time_inds: List
+        Time axis indices used to clip the data. Format should be [minimum time index, maximum time index]. The data will be averaged over all times between the two indices. The default is [], which means the metric will average over all times in the provided dataset.
+    pols: List
+        Polarizations to include. Can be any subset of ['EE','NN','EN','NE'].
+    nanDiffs: Boolean
+        Option to set all diff values of zero to NaN. Useful when there are issues causing occasional zeros in the diffs, which will cause issues when dividing by the diffs. Setting to NaN allows a nanaverage to mitigate the issue. Default is False.
+    interleave: String
+        Sets the interleave interval. Options are 'even_odd' or 'adjacent_integration'. When set to 'even_odd', the evens and odds in the metric calculation are set using the sums and diffs. When set to 'adjacent_integration', adjacent integrations are used in place of the evens and odds for the interleave.
+    divideByAbs: Boolean
+        Option to divide the metric by the absolute value of the evens and odds. Default is True. Setting to False will result in an un-normalized metric.
+
+
+    Returns:
+    --------
+    corr: numpy array
+        2x2 numpy array containing the resulting values of the correlation matrix.
+    perBlSummary: Dict
+        Dictionary containing metric summary data for each polarization, separated by node, snap, and snap input connectivity.
+    """
+    from hera_mc import cm_hookup
+
+    if type(pols) == str:
+        pols = [pols]
+    if use_ants == "all":
+        use_ants = uvd_sum.get_ants()
+    if pols == ["EE"]:
+        antpols = ["E"]
+    elif pols == ["NN"]:
+        antpols = ["N"]
+    else:
+        antpols = ["N", "E"]
+    useAnts, _, _ = sort_antennas(uvd_sum, use_ants, antpols)
+    corr = np.zeros((len(useAnts), len(useAnts)))
+    perBlSummary = {
+        pol: {
+            "all_vals": [],
+            "intranode_vals": [],
+            "intrasnap_vals": [],
+            "internode_vals": [],
+            "all_bls": [],
+            "intranode_bls": [],
+            "intrasnap_bls": [],
+            "internode_bls": [],
+        }
+        for pol in np.append(pols, "allpols")
+    }
+    x = cm_hookup.get_hookup("default")
+    for i, a1 in enumerate(useAnts):
+        for j, a2 in enumerate(useAnts):
+            if len(antpols) > 1:
+                ant1 = int(a1[:-1])
+                ant2 = int(a2[:-1])
+                p1 = str(a1[-1])
+                p2 = str(a2[-1])
+            else:
+                ant1 = a1
+                ant2 = a2
+                p1 = antpols[0]
+                p2 = antpols[0]
+            pol = f"{p1}{p2}"
+            if pol not in pols:
+                continue
+            key = (ant1, ant2, pol)
+            s = np.asarray(uvd_sum.get_data(key))
+            d = np.asarray(uvd_diff.get_data(key))
+            if nanDiffs is True:
+                dAbs = np.asarray(np.abs(d))
+                locs = np.where(dAbs == 0)
+                d.setflags(write=1)
+                d[locs] = np.nan
+            if interleave == "even_odd":
+                even = (s + d) / 2
+                odd = (s - d) / 2
+            elif interleave == "adjacent_integration":
+                even = s[: len(s) // 2 * 2 : 2]
+                odd = s[1 : len(s) // 2 * 2 : 2]
+            if divideByAbs is True:
+                even = np.divide(even, np.abs(even))
+                odd = np.divide(odd, np.abs(odd))
+            else:
+                even[even == 0] = np.nan
+                odd[odd == 0] = np.nan
+            product = np.multiply(even, np.conj(odd))
+            if len(freq_inds) > 0:
+                product = product[:, freq_inds[0] : freq_inds[1]]
+            if len(time_inds) > 0:
+                product = product[time_inds[0] : time_inds[1], :]
+            if norm == "abs":
+                corr[i, j] = np.abs(np.nanmean(product))
+            elif norm == "real":
+                corr[i, j] = np.real(np.nanmean(product))
+            elif norm == "imag":
+                corr[i, j] = np.imag(np.nanmean(product))
+            elif norm == "max":
+                corr[i, j] = np.max(product)
+            key1 = get_ant_key(x, ant1)
+            n1 = x[key1].get_part_from_type("node")[f"{p1}<ground"][1:]
+            snapLoc1 = (
+                x[key1].hookup[f"{p1}<ground"][-1].downstream_input_port[-1],
+                ant1,
+            )[0]
+            key2 = get_ant_key(x, ant2)
+            n2 = x[key2].get_part_from_type("node")[f"{p2}<ground"][1:]
+            snapLoc2 = (
+                x[key2].hookup[f"{p2}<ground"][-1].downstream_input_port[-1],
+                ant2,
+            )[0]
+            if ant1 != ant2:
+                perBlSummary[pol]["all_vals"].append(np.nanmean(product, axis=0))
+                perBlSummary[pol]["all_bls"].append((a1, a2))
+                perBlSummary["allpols"]["all_vals"].append(np.nanmean(product, axis=0))
+                perBlSummary["allpols"]["all_bls"].append((a1, a2))
+                if n1 == n2:
+                    if snapLoc1 == snapLoc2:
+                        perBlSummary[pol]["intrasnap_vals"].append(
+                            np.nanmean(product, axis=0)
+                        )
+                        perBlSummary[pol]["intrasnap_bls"].append((a1, a2))
+                        perBlSummary["allpols"]["intrasnap_vals"].append(
+                            np.nanmean(product, axis=0)
+                        )
+                        perBlSummary["allpols"]["intrasnap_bls"].append((a1, a2))
+                    else:
+                        perBlSummary[pol]["intranode_vals"].append(
+                            np.nanmean(product, axis=0)
+                        )
+                        perBlSummary[pol]["intranode_bls"].append((a1, a2))
+                        perBlSummary["allpols"]["intranode_vals"].append(
+                            np.nanmean(product, axis=0)
+                        )
+                        perBlSummary["allpols"]["intranode_bls"].append((a1, a2))
+                else:
+                    perBlSummary[pol]["internode_vals"].append(
+                        np.nanmean(product, axis=0)
+                    )
+                    perBlSummary[pol]["internode_bls"].append((a1, a2))
+                    perBlSummary["allpols"]["internode_vals"].append(
+                        np.nanmean(product, axis=0)
+                    )
+                    perBlSummary["allpols"]["internode_bls"].append((a1, a2))
+    return corr, perBlSummary
