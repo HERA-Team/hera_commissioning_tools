@@ -190,7 +190,7 @@ def plot_autos(
 
 def plot_wfs(
     uvd,
-    pol,
+    pol="xx",
     mean_sub=False,
     savefig=False,
     vmin=None,
@@ -259,13 +259,12 @@ def plot_wfs(
     inds = np.unique(lsts, return_index=True)[1]
     lsts = [lsts[ind] for ind in sorted(inds)]
     maxants = 0
-    polnames = ["xx", "yy"]
     if dtype == "sky":
         vminAuto = 6.5
         vmaxAuto = 8
         vminSubAuto = -0.07
         vmaxSubAuto = 0.07
-    if dtype == "load":
+    elif dtype == "load":
         vminAuto = 5.5
         vmaxAuto = 7.5
         vminSubAuto = -0.04
@@ -302,10 +301,7 @@ def plot_wfs(
     h = cm_active.get_active(at_date=jd, float_format="jd")
     ptitle = 1.92 / (Yside * 3)
     fig, axes = plt.subplots(Yside, Nside, figsize=(16, Yside * 3))
-    if pol == 0:
-        fig.suptitle("North Polarization", fontsize=14, y=1 + ptitle)
-    else:
-        fig.suptitle("East Polarization", fontsize=14, y=1 + ptitle)
+    fig.suptitle(f"{pol} Polarization", fontsize=14, y=1 + ptitle)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
     fig.subplots_adjust(left=0, bottom=0.1, right=0.9, top=1, wspace=0.1, hspace=0.3)
 
@@ -320,12 +316,12 @@ def plot_wfs(
             ax = axes[i, j]
             if metric is None:
                 if logscale is True:
-                    dat = np.log10(np.abs(uvd.get_data(a, a, polnames[pol])))
+                    dat = np.log10(np.abs(uvd.get_data(a, a, pol)))
                 else:
-                    dat = np.abs(uvd.get_data(a, a, polnames[pol]))
+                    dat = np.abs(uvd.get_data(a, a, pol))
             else:
-                dat_diff = uvd_diff.get_data(a, a, polnames[pol])
-                dat = uvd.get_data(a, a, polnames[pol])
+                dat_diff = uvd_diff.get_data(a, a, pol)
+                dat = uvd.get_data(a, a, pol)
                 if metric == "even":
                     dat = (dat + dat_diff) / 2
                 elif metric == "odd":
@@ -1326,3 +1322,284 @@ def plotCrossWaterfallsByCorrValue(
         else:
             print(f"Saving {outfig}_{pol}_{metric}.jpeg")
             plt.savefig(f"{outfig}_{pol}_{metric}.jpeg", bbox_inches="tight")
+
+
+def plotTimeDifferencedSumWaterfalls(
+    files=[],
+    nfiles=10,
+    use_ants=[],
+    uvd=None,
+    polNum=0,
+    savefig=False,
+    outfig="",
+    internodeOnly=True,
+    norm="real",
+    vmin=-1e4,
+    vmax=1e4,
+    colormap="viridis",
+    startTimeInd=100,
+):
+    """
+    Function to plot waterfalls with frequency on the x-axis and baseline number on the y-axis, where each panel shows the difference between adjacent time steps in the data. The purpose of this plot is to highlight temporal variability in the data, and show any relationship to baseline number.
+
+    Parameters:
+    -----------
+    files: List
+        List of full paths to data files.
+    nfiles: Int
+        Number of files to use and produce plots for.
+    use_ants: List
+        List of antennas to use. If empty, all antennas will be used.
+    uvd: UVData Object
+        Optional, if provided this will be used rather than reading in new files from the files list. Saves time.
+    polNum: Int
+        Polarization index per pyuvdata data array format.
+    savefig: Boolean
+        Option to write out the figure.
+    outfig: String
+        Full path to write out the figure.
+    internodeOnly: Boolean
+        Option to use only internode baselines.
+    norm: String
+        Can be 'real', 'imag', or 'abs' to plot the real component, imaginary component, or absolute value of the visibilities, respectively.
+    vmin: float
+        Minimum colorbar value.
+    vmax: float
+        Maximum colorbar value.
+    colormap: String
+        Matplotlib colormap to use. Default is viridis.
+    startTimeInd:
+        Index of files list to take first file from. Last file will then have index startTimeInd + nfiles. Only used if uvd is not provided.
+
+    Returns:
+    --------
+    uvd: UVData Object
+        Data that was used in the plot.
+    sdiffs: numpy array
+        Time differenced visibilities.
+    """
+    from pyuvdata import UVData
+
+    if uvd is None:
+        if len(files) == 0:
+            print("##### Must provide either a uvd object or a list of files #####")
+        uvd = UVData()
+        if len(use_ants) == 0:
+            uvd.read(files[startTimeInd : startTimeInd + nfiles])
+        else:
+            uvd.read(files[startTimeInd : startTimeInd + nfiles], antenna_nums=use_ants)
+    if internodeOnly is True:
+        nodes, antDict, inclNodes = utils.generate_nodeDict(uvd, ["E", "N"])
+        blDict = utils.getBlsByConnectionType(uvd)
+        internodeBls = blDict["internode"]
+        uvd.select(bls=internodeBls)
+    sdat = uvd.data_array[:, :, :, polNum]
+    sdat = np.reshape(sdat, (uvd.Nbls, -1, 1536))
+    sdiffs = np.diff(sdat, 1, 1)
+    ntimes = np.shape(sdiffs)[1]
+    ncols = 3
+    nrows = int(np.ceil(ntimes / ncols))
+    fig, ax = plt.subplots(nrows, ncols, figsize=(20, 6 * nrows))
+    freqs = uvd.freq_array[0] * 1e-6
+    xticks = [int(i) for i in np.linspace(0, len(freqs) - 1, 5)]
+    xticklabels = [int(f) for f in freqs[xticks]]
+    for i in range(ntimes):
+        ax[i // 3][i % 3].set_xticks(xticks)
+        ax[i // 3][i % 3].set_xticklabels(xticklabels)
+        if norm == "real":
+            im = ax[i // 3][i % 3].imshow(
+                np.real(sdiffs[:, i, :]),
+                aspect="auto",
+                vmin=vmin,
+                vmax=vmax,
+                interpolation="nearest",
+                cmap=colormap,
+            )
+        elif norm == "imag":
+            im = ax[i // 3][i % 3].imshow(
+                np.imag(sdiffs[:, i, :]),
+                aspect="auto",
+                vmin=vmin,
+                vmax=vmax,
+                interpolation="nearest",
+                cmap=colormap,
+            )
+        elif norm == "abs":
+            im = ax[i // 3][i % 3].imshow(
+                np.abs(sdiffs[:, i, :]),
+                aspect="auto",
+                vmin=vmin,
+                vmax=vmax,
+                interpolation="nearest",
+                cmap=colormap,
+            )
+        if i // 3 == 2:
+            ax[i // 3][i % 3].set_xlabel("Frequency (MHz)")
+        if i % 3 == 0:
+            ax[i // 3][i % 3].set_ylabel("Baseline #")
+        ax[i // 3][i % 3].set_title(f"t{i+1}-t{i}")
+        if i % 3 == 2:
+            fig.colorbar(im, ax=ax[i // 3][i % 3])
+    fig.suptitle(norm)
+    if savefig is True:
+        plt.savefig(outfig)
+    return uvd, sdiffs
+
+
+def plot_single_matrix(
+    uv,
+    data,
+    antnums="auto",
+    linlog=False,
+    dataRef=None,
+    vminIn=0,
+    vmaxIn=1,
+    logScale=False,
+    pols=["E", "N"],
+    savefig=False,
+    outfig="",
+    cmap="plasma",
+    title="Corr Matrix",
+    incAntLines=False,
+    incAntLabels=True,
+):
+    """
+    Function to plot a single correlation matrix (rather than the standard 4x4 set of matrices).
+
+    Parameters:
+    -----------
+    uv: UVData Object
+        Sample observation used for extracting node and antenna information.
+    data: numpy array
+        2x2 numpy array containing the values to plot, where each axis contains one data point per antenna or antpol. These must be sorted by node, snap, and snap input, respectively when antnums is set to 'auto', otherwise they must be sorted in the same manner as the provided antnums list.
+    antnums: List or 'auto'
+        List of antennas or antpols represented in the data array. Set this value to 'auto' if antennas are ordered according to the sort_antennas function. Default is 'auto'.
+    linlog: Boolean
+        Option to plot the data on a linlog scale, such that the colorbar is on a linear scale over some range of reference metric values set by the 99th percentile of values in the provided dataRef, and on a log scale over the remainder of values. The intended use is for dataRef to represent the expected noise of the data. Default is False.
+    dataRef: numpy array or None
+        2x2 numpy array containing reference metric values to use when setting the linear scale range when linlog is set to True. This parameter is required to use the linlog function. Default is None.
+    vminIn: Int
+        Minimum colorbar value. Default is 0.
+    vmaxIn: Int
+        Maximum colorbar value. Default is 1.
+    logScale: Boolean
+        Option to plot the colorbar on a logarithmic scale. Default is False.
+    pols: List
+        List of antpols included in the dataset. Used in determining the ordering of antpols in the dataset. Required if antnums is 'auto'.
+    savefig: Boolean
+        Option to write out figure. Default is False.
+    outfig: String
+        Path to write figure to. Required if savefig is set to True.
+    cmap: String
+        Colormap to use. Must be a valid matplotlib colormap. Default is 'plasma'.
+    title: String
+        Displayed figure title.
+    incAntLines: Boolean
+        Option to include faint blue lines along the border between each antenna. Default is False.
+    incAntLabels: Boolean
+        Option to include antenna number labels on the plot. Default is True.
+    """
+    from matplotlib import colors, cm
+    from astropy.coordinates import EarthLocation
+    from astropy.time import Time
+
+    nodeDict, antDict, inclNodes = utils.generate_nodeDict(uv, pols=pols)
+    nantsTotal = len(uv.get_ants())
+    fig, axs = plt.subplots(1, 1, figsize=(16, 16))
+    loc = EarthLocation.from_geocentric(*uv.telescope_location, unit="m")
+    jd = uv.time_array[0]
+    t = Time(jd, format="jd", location=loc)
+    t.format = "fits"
+    if antnums == "auto":
+        antnums, _, _ = utils.sort_antennas(uv, "all", pols=pols)
+    nantsTotal = len(antnums)
+    if nantsTotal != len(data):
+        print("##### WARNING: NUMBER OF ANTENNAS DOES NOT MATCH MATRIX SIZE #####")
+    if linlog is True and dataRef is not None:
+        linthresh = np.percentile(dataRef, 99)
+        norm = colors.SymLogNorm(
+            linthresh=linthresh, linscale=1, vmin=-linthresh, vmax=1.0
+        )
+        ptop = int((1 - norm(linthresh)) * 10000)
+        pbottom = 10000 - ptop
+        top = cm.get_cmap("plasma", ptop)
+        bottom = cm.get_cmap("binary", pbottom)
+        newcolors = np.vstack(
+            (bottom(np.linspace(0, 1, pbottom)), top(np.linspace(0, 1, ptop)))
+        )
+        newcmp = colors.ListedColormap(newcolors, name="linlog")
+        axs.imshow(
+            data,
+            cmap=newcmp,
+            origin="upper",
+            extent=[0.5, nantsTotal + 0.5, 0.5, nantsTotal + 0.5],
+            norm=norm,
+        )
+    elif linlog is True and dataRef is None:
+        print("#################################################################")
+        print("ERROR: dataRef parameter must be provided when linlog set to True")
+        print("#################################################################")
+    elif logScale is True:
+        axs.imshow(
+            data,
+            cmap=cmap,
+            origin="upper",
+            extent=[0.5, nantsTotal + 0.5, 0.5, nantsTotal + 0.5],
+            norm=colors.LogNorm(vmin=vminIn, vmax=vmaxIn),
+        )
+    else:
+        axs.imshow(
+            data,
+            cmap=cmap,
+            origin="upper",
+            extent=[0.5, nantsTotal + 0.5, 0.5, nantsTotal + 0.5],
+            vmin=vminIn,
+            vmax=vmaxIn,
+        )
+    axs.set_xticks([])
+    axs.set_yticks([])
+    n = 0
+    s = 0
+    for node in sorted(inclNodes):
+        s = n
+        for snap in ["0", "1", "2", "3"]:
+            for snapLoc in nodeDict[node]["snapLocs"]:
+                loc = snapLoc[0]
+                if loc == snap:
+                    s += 1
+            axs.axhline(len(antnums) - s + 0.5, lw=2.5, alpha=0.5)
+            axs.axvline(s + 0.5, lw=2.5, alpha=0.5)
+        n += len(nodeDict[node]["ants"])
+        axs.axhline(len(antnums) - n + 0.5, lw=5)
+        axs.axvline(n + 0.5, lw=5)
+        axs.text(n - len(nodeDict[node]["ants"]) / 2, -1.7, node, fontsize=14)
+    if incAntLines is True:
+        for a in range(len(antnums)):
+            axs.axhline(len(antnums) - a + 0.5, lw=1, alpha=0.5)
+            axs.axvline(a + 0.5, lw=1, alpha=0.5)
+    axs.text(0.42, -0.05, "Node Number", transform=axs.transAxes, fontsize=18)
+    n = 0
+    for node in sorted(inclNodes):
+        n += len(nodeDict[node]["ants"])
+        axs.text(
+            nantsTotal + 1,
+            nantsTotal - n + len(nodeDict[node]["ants"]) / 2,
+            node,
+            fontsize=14,
+        )
+    axs.text(
+        1.04, 0.4, "Node Number", rotation=270, transform=axs.transAxes, fontsize=18
+    )
+    axs.set_xticks(np.arange(0, nantsTotal) + 1)
+    axs.set_xticklabels(antnums, rotation=90, fontsize=6)
+    axs.xaxis.set_ticks_position("top")
+    axs.set_yticks(np.arange(nantsTotal, 0, -1))
+    axs.set_yticklabels(antnums, fontsize=6)
+    cbar_ax = fig.add_axes([1, 0.05, 0.015, 0.89])
+    cbar_ax.set_xlabel(r"$|C_{ij}|$", rotation=0, fontsize=18)
+    fig.subplots_adjust(top=1.28, wspace=0.05, hspace=1.1)
+    fig.tight_layout(pad=2)
+    axs.set_title(title)
+    if savefig is True:
+        plt.savefig(outfig, bbox_inches="tight")
+    plt.show()
