@@ -655,12 +655,24 @@ def calc_corr_metric(
         use_ants = uvd_sum.get_ants()
     if pols == ["EE"]:
         antpols = ["E"]
+        useAnts, _, _ = sort_antennas(uvd_sum, use_ants, antpols)
+        perPolDict = {pols[0]: np.zeros((len(useAnts), len(useAnts)))}
     elif pols == ["NN"]:
         antpols = ["N"]
+        useAnts, _, _ = sort_antennas(uvd_sum, use_ants, antpols)
+        perPolDict = {pols[0]: np.zeros((len(useAnts), len(useAnts)))}
     else:
         antpols = ["N", "E"]
-    useAnts, _, _ = sort_antennas(uvd_sum, use_ants, antpols)
+        useAnts, _, _ = sort_antennas(uvd_sum, use_ants, antpols)
+        perPolDict = {
+            pol: np.zeros(
+                (int(len(useAnts) / len(pols) * 2), int(len(useAnts) / len(pols) * 2))
+            )
+            for pol in pols
+        }
+    polInds = {p: [0, 0] for p in pols}
     corr = np.zeros((len(useAnts), len(useAnts)))
+
     perBlSummary = {
         pol: {
             "all_vals": [],
@@ -688,6 +700,15 @@ def calc_corr_metric(
                 p1 = antpols[0]
                 p2 = antpols[0]
             pol = f"{p1}{p2}"
+            polInds[pol][1] += 1
+            # if pol =='EE':
+            #     print(polInds[pol])
+            if j == 0:
+                for key in polInds.keys():
+                    if pol[0] == "N" and (key == "NN" or key == "NE"):
+                        polInds[key][0] += 1
+                    elif pol[0] == "E" and (key == "EE" or key == "EN"):
+                        polInds[key][0] += 1
             if pol not in pols:
                 continue
             key = (ant1, ant2, pol)
@@ -717,12 +738,24 @@ def calc_corr_metric(
                 product = product[time_inds[0] : time_inds[1], :]
             if norm == "abs":
                 corr[i, j] = np.abs(np.nanmean(product))
+                perPolDict[pol][polInds[pol][0] - 1, polInds[pol][1] - 1] = np.abs(
+                    np.nanmean(product)
+                )
             elif norm == "real":
                 corr[i, j] = np.real(np.nanmean(product))
+                perPolDict[pol][polInds[pol][0] - 1, polInds[pol][1] - 1] = np.real(
+                    np.nanmean(product)
+                )
             elif norm == "imag":
                 corr[i, j] = np.imag(np.nanmean(product))
+                perPolDict[pol][polInds[pol][0] - 1, polInds[pol][1] - 1] = np.imag(
+                    np.nanmean(product)
+                )
             elif norm == "max":
                 corr[i, j] = np.max(product)
+                perPolDict[pol][polInds[pol][0] - 1, polInds[pol][1] - 1] = np.max(
+                    product
+                )
             key1 = get_ant_key(x, ant1)
             n1 = x[key1].get_part_from_type("node")[f"{p1}<ground"][1:]
             snapLoc1 = (
@@ -768,4 +801,6 @@ def calc_corr_metric(
                         np.nanmean(product, axis=0)
                     )
                     perBlSummary["allpols"]["internode_bls"].append((a1, a2))
-    return corr, perBlSummary
+        for key in polInds.keys():
+            polInds[key][1] = 0
+    return corr, perBlSummary, perPolDict
