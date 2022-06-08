@@ -823,3 +823,28 @@ def calc_corr_metric(
         for key in polInds.keys():
             polInds[key][1] = 0
     return corr, perBlSummary, perPolDict
+
+
+def getRandPercentage(data, percentage):
+    """
+    Simple helper function to select a random subset of data points. Useful when the number of points causes plotting functions to become exceedingly slow.
+
+    Parameters:
+    -----------
+    data: numpy array
+        1D numpy array containing the data to filter.
+    percentage: Int
+        Percentage of data points to keep.
+
+    Returns:
+    --------
+    data: numpy array
+        A new data array with a smaller number of data points.
+    indices: List
+        A list of indices that index into the original data array to extract the points that are kept in the output data array.
+
+    """
+    k = len(data) * percentage // 100
+    indices = np.random.sample(int(k)) * len(data)
+    data = [data[int(i)] for i in indices]
+    return data, indices
