@@ -1673,16 +1673,20 @@ def plotCorrMatrices(
     from astropy.coordinates import EarthLocation
     from astropy.time import Time
 
+    if pols == ["EE"]:
+        antpols = ["E"]
+    elif pols == ["NN"]:
+        antpols = ["N"]
+    else:
+        antpols = ["N", "E"]
     if nodes == "auto":
-        nodeDict, antDict, inclNodes = utils.generate_nodeDict(uv)
-    antnumsAll, sortedSnapLocs, sortedSnapInputs = utils.sort_antennas(uv)
+        nodeDict, _, inclNodes = utils.generate_nodeDict(uv, pols=antpols)
+    antnumsAll, _, _ = utils.sort_antennas(uv, pols=antpols)
     nantsTotal = len(antnumsAll)
     fig, axs = plt.subplots(2, 2, figsize=(20, 20))
-    dirs = ["NN", "EE", "NE", "EN"]
     cmap = "plasma"
     if crossPolCheck is True:
         pols = ["NN-NE", "NN-EN", "EE-NE", "EE-EN"]
-        dirs = pols
         vmin = -1
         cmap = "seismic"
     loc = EarthLocation.from_geocentric(*uv.telescope_location, unit="m")
@@ -1718,7 +1722,7 @@ def plotCorrMatrices(
             axs[i][p % 2].xaxis.set_ticks_position("top")
         else:
             axs[i][p % 2].set_xticks([])
-        axs[i][p % 2].set_title("polarization: " + dirs[p] + "\n")
+        axs[i][p % 2].set_title("polarization: " + pols[p] + "\n")
         n = 0
         for node in sorted(inclNodes):
             n += len(nodeDict[node]["ants"])
@@ -2216,3 +2220,228 @@ def plotCorrSpectraAndHists(
     else:
         plt.show()
     return perBlSummary
+
+
+def plotSmithChartByNode(
+    sm,
+    nodes="all",
+    pols=["EE", "NN", "EN", "NE"],
+    order="snap",
+    savefig=False,
+    outfig="",
+    highlightAnts=[],
+    upper="smith",
+    lower="phase",
+    corrDict=None,
+    titlefontsize=10,
+    figsize=(50, 50),
+    colorSameADC=False,
+    incSnapInTitle=False,
+):
+    """
+    Parameters:
+    -----------
+
+    sm: UVData
+        Object containing visibilities to plot.
+    nodes: List or 'all'
+        List of nodes to make plots for. A separate plot will be produced for each node. Node numbers should be provided as a string.
+    pols: List
+        List of polarizations to plot - can be ['EE'], ['NN'], or ["EE", "NN", "EN", "NE"].
+    order: String
+        Sets the way antennas are ordered - can either be 'snap' to order by snap input number, or 'pam' to order by pam input number.
+    savefig: Boolean
+        Option to save out the figure.
+    outfig: String
+        Full path to write out the figure.
+    highlightAnts: List
+        List of antennas to highlight for easier identification in the plot. Default is an empty list, which will not highlight any antennas.
+    upper: String
+        Option to specify what to plot above the diagonal. Options are:
+            1) 'smith' - disclaimer: these are not real smith charts. These are radial plots of the cross visibilities, with frequency shown by the color of the points.
+            2) 'phase' - waterfalls of the phase of the cross visibilities.
+            3) 'delay' - waterfalls of the delay spectra of the cross visibilities.
+            4) 'corr' - spectra of the cross-correlations, typically as calculated by the calc_corr_metric function. (In this case you must provide the spectra yourself, so you could provide spectra calculated in any way you like).
+            5) 'corr_by_auto' - Correlation spectra normalized by the autos.
+    lower: String
+        Option to specify what to plot below the diagonal. Options are the same as for 'upper'.
+    corrDict: Dict
+        Dictionary containing correlation metric data, typically produced using utils.calc_corr_metric.
+    titlefontsize: Int
+        Font size for antenna number title labels.
+    figsize: Tuple
+        Figure size - depending on number of antennas and desired resolution this will vary.
+    colorSameADC: Boolean
+        Option to do a distinct label color for baselines on the same ADC.
+    incSnapInTitle: Boolean
+        Option to include SNAP input numbers in the panel labels along with antenna number.
+
+    Returns:
+    --------
+    None
+    """
+    from hera_mc import cm_hookup
+
+    if pols == ["EE"]:
+        antpols = ["E"]
+    elif pols == ["NN"]:
+        antpols = ["N"]
+    else:
+        antpols = ["N", "E"]
+    x = cm_hookup.get_hookup("default")
+    nodeDict, antDict, inclNodes = utils.generate_nodeDict(sm, pols=antpols)
+    if nodes == "all":
+        nodes = inclNodes
+
+    for node in nodes:
+        ants = nodeDict[node]["ants"]
+        if order == "snap":
+            ants = utils.sort_antennas(sm, use_ants=ants, pols=antpols)[0]
+        elif order == "pam":
+            pams = []
+            for a in ants:
+                key = f"HH{a}:A"
+                p = x[key].get_part_from_type("post-amp")["E<ground"][3:]
+                pams.append(int(p))
+            sorted_ants = []
+            for i, p in enumerate(sorted(pams)):
+                for j, a in enumerate(ants):
+                    key = f"HH{a}:A"
+                    pam = x[key].get_part_from_type("post-amp")["E<ground"][3:]
+                    if int(pam) == p:
+                        sorted_ants.append(a)
+            ants = sorted_ants
+        fig = plt.figure(figsize=figsize)
+        gs = fig.add_gridspec(len(ants), len(ants), hspace=0.25, wspace=0.2, left=0.1)
+        for i, a1 in enumerate(ants):
+            for j, a2 in enumerate(ants):
+                if len(pols) > 1:
+                    ant1 = a1[:-1]
+                    ant2 = a2[:-1]
+                    pref1 = a1[-1]
+                    pref2 = a2[-1]
+                else:
+                    ant1 = a1
+                    ant2 = a2
+                    pref1 = pols[0][0]
+                    pref2 = pols[0][0]
+                s1 = antDict[a1]["snapLocs"][0]
+                s2 = antDict[a2]["snapLocs"][0]
+                sin1 = antDict[a1]["snapInput"][0]
+                sin2 = antDict[a2]["snapInput"][0]
+                pol = f"{pref1}{pref2}"
+                d = sm.get_data((int(ant1), int(ant2), pol))
+                freqs = sm.freq_array[0] * 1e-6
+                if (upper == "smith" and i < j) or (lower == "smith" and i > j):
+                    davg = np.average(d, axis=0)
+                    r = np.abs(davg)
+                    theta = np.angle(davg)
+                    min10 = np.log10(np.min(r))
+                    r = np.log10(r) - min10
+                    ax = fig.add_subplot(gs[i, j], polar=True)
+                    im = ax.scatter(theta, r, c=freqs, cmap="viridis", s=20)
+                    ax.set_rlim(0, np.percentile(r, 99.5))
+                    ax.set_rticks([])
+                    if a2 == ants[-1]:
+                        fig.colorbar(im)
+                    ax.set_ylabel("Re")
+                    ax.set_xlabel("Im")
+                    ax.set_xticklabels([])
+                elif (upper == "delay" and i < j) or (lower == "delay" and i > j):
+                    ddel = np.angle(d)
+                    d_fft = np.fft.fftshift(np.fft.ifft(ddel), axes=1)
+                    d_plt = 10.0 * np.log10(np.sqrt(np.abs(d_fft)))
+                    ax = fig.add_subplot(gs[i, j])
+                    im = ax.imshow(d_plt[:, 580:956], aspect="auto")
+                    ax.set_xticks([])
+                    ax.set_yticks([])
+                elif (upper == "corr" and i < j) or (lower == "corr" and i > j):
+                    if corrDict is None:
+                        print("MUST SUPPLY CORRDICT IF UPPER==CORR")
+                    cspec = corrDict[f"{a1},{a2}"]
+                    ax = fig.add_subplot(gs[i, j])
+                    ax.plot(freqs, cspec)
+                    ax.set_ylim(-30, 1)
+                    ax.yaxis.tick_right()
+                    if a2 != ants[-1]:
+                        ax.set_yticks([])
+                    ax.set_xticks([])
+                elif (upper == "corr_by_auto" and i < j) or (
+                    lower == "corr_by_auto" and i > j
+                ):
+                    pol1 = f"{pol[0]}{pol[0]}"
+                    pol2 = f"{pol[1]}{pol[1]}"
+                    auto1 = np.asarray(sm.get_data((int(ant1), int(ant1), pol1)))
+                    auto2 = np.asarray(sm.get_data((int(ant2), int(ant2), pol2)))
+                    denom = np.multiply(np.sqrt(auto1), np.sqrt(auto2))
+                    sumvis = sm.get_data(int(ant1), int(ant2), pol)
+                    c = np.divide(sumvis, denom)
+                    cspec = np.mean(c, axis=0)
+
+                    ax = fig.add_subplot(gs[i, j])
+                    ax.plot(freqs, 10 * np.log10(abs(cspec)))
+                    ax.set_ylim(-45, 2)
+                    ax.yaxis.tick_right()
+                    if a2 != ants[-1]:
+                        ax.set_yticks([])
+                    ax.set_xticks([])
+                elif (upper == "phase" and i < j) or (lower == "phase" and i > j):
+                    ax = fig.add_subplot(gs[i, j])
+                    im = ax.imshow(
+                        np.angle(d),
+                        cmap="twilight",
+                        vmin=-np.pi,
+                        vmax=np.pi,
+                        aspect="auto",
+                    )
+                    if a1 == ants[-1]:
+                        fig.colorbar(im, orientation="horizontal")
+                        ax.set_xlabel("Frequency")
+                    else:
+                        ax.set_xticks([])
+                    ax.set_yticks([])
+                    if a2 == ants[0]:
+                        ax.set_ylabel("Time")
+                elif i == j:
+                    davg = abs(np.average(d, axis=0))
+                    ax = fig.add_subplot(gs[i, j])
+                    plt.plot(freqs, davg)
+                    ax.set_xticks([])
+                    ax.set_yticks([])
+                if incSnapInTitle is True:
+                    titleStr = f"({a1},{a2}) - (S{s1}-{sin1}, S{s2}-{sin2})"
+                else:
+                    titleStr = f"({a1},{a2})"
+                if a1 in highlightAnts and a2 in highlightAnts:
+                    ax.set_title(
+                        titleStr,
+                        backgroundcolor="firebrick",
+                        color="w",
+                        fontsize=titlefontsize,
+                    )
+                elif a1 in highlightAnts or a2 in highlightAnts:
+                    ax.set_title(
+                        titleStr,
+                        backgroundcolor="lightsalmon",
+                        color="black",
+                        fontsize=titlefontsize,
+                    )
+                elif pol[0] != pol[1] and ant1 == ant2 and colorSameADC is True:
+                    ax.set_title(
+                        titleStr,
+                        backgroundcolor="mediumblue",
+                        color="white",
+                        fontsize=titlefontsize,
+                    )
+                else:
+                    ax.set_title(
+                        titleStr,
+                        backgroundcolor="black",
+                        color="w",
+                        fontsize=titlefontsize,
+                    )
+        if savefig:
+            print(f"Saving {outfig}")
+            plt.savefig(outfig)
+        plt.show()
+        plt.close("all")
