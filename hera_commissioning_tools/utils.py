@@ -848,3 +848,108 @@ def getRandPercentage(data, percentage):
     indices = np.random.sample(int(k)) * len(data)
     data = [data[int(i)] for i in indices]
     return data, indices
+
+
+def getPerBaselineSummary(
+    sm, df, interleave="even_odd", interval=1, pols=["EE", "NN", "EN", "NE"], avg="mean"
+):
+    """
+    Function to produce a dictionary containing correlation metric values for different polarizations and baseline types.
+
+    Parameters:
+    -----------
+    sm: UVData Object
+        Sum visibilities.
+    df: UVData Object
+        Diff visibilities.
+    interleave: String
+        Can be 'even_odd' (default), which sets the standard even odd interleave, or 'ns', which will result in an interleave every n seconds, where n is set by the 'interval' parameter.
+    interval: Int
+        Parameter to set the interleave interval if interval_type = 'ns'. Units are number of integrations.
+    pols: List
+        Polarizations to include. Default is ['EE','NN','EN','NE'].
+    avg: String
+        Sets the time averaging of the data. Can be 'mean', 'median', or None to not do any time averaging.
+
+    Returns:
+    --------
+    perBlSummary: Dict
+        A dictionary containing a per baseline summary of the correlation data, with a key for each provided polarization, and an 'allpols' key corresponding to data with all provided polarizations combined. For each polarization, there are 'all_vals', 'internode_vals', 'intranode_vals', and 'intrasnap_vals' keys.
+    """
+    from hera_mc import cm_hookup
+
+    antnums = sm.get_ants()
+    antpos, ants = sm.get_ENU_antpos()
+    h = cm_hookup.Hookup()
+    x = h.get_hookup("HH")
+    dat = {
+        pol: {
+            "all_vals": [],
+            "intranode_vals": [],
+            "intrasnap_vals": [],
+            "internode_vals": [],
+            "all_bls": [],
+            "intranode_bls": [],
+            "intrasnap_bls": [],
+            "internode_bls": [],
+        }
+        for pol in np.append(pols, "allpols")
+    }
+    for i, a1 in enumerate(antnums):
+        for j, a2 in enumerate(antnums):
+            if a1 >= a2:
+                continue
+            for pol in pols:
+                s = sm.get_data(a1, a2, pol)
+                d = df.get_data(a1, a2, pol)
+                if interleave == "even_odd":
+                    e = (s + d) / 2
+                    o = (s - d) / 2
+                else:
+                    e = s[:-interval:2, :]
+                    o = s[interval::2, :]
+                c = np.multiply(e, np.conj(o))
+                c /= np.abs(e)
+                c /= np.abs(o)
+                if avg == "mean":
+                    val = np.nanmean(c, axis=0)
+                elif avg == "median":
+                    val = np.nanmedian(c, axis=0)
+                elif avg is None:
+                    val = c.flatten()
+                key1 = "HH%i:A" % (a1)
+                p1 = pol[0]
+                n1 = x[key1].get_part_from_type("node")[f"{p1}<ground"][1:]
+                snapLoc1 = (
+                    x[key1].hookup[f"{p1}<ground"][-1].downstream_input_port[-1],
+                    a1,
+                )[0]
+                key2 = "HH%i:A" % (a2)
+                p2 = pol[1]
+                n2 = x[key2].get_part_from_type("node")[f"{p2}<ground"][1:]
+                snapLoc2 = (
+                    x[key2].hookup[f"{p2}<ground"][-1].downstream_input_port[-1],
+                    a2,
+                )[0]
+                if a1 != a2:
+                    dat[pol]["all_vals"].append(val)
+                    dat[pol]["all_bls"].append((a1, a2))
+                    dat["allpols"]["all_vals"].append(val)
+                    dat["allpols"]["all_bls"].append((a1, a2))
+                    if n1 == n2:
+                        if snapLoc1 == snapLoc2:
+                            dat[pol]["intrasnap_vals"].append(val)
+                            dat[pol]["intrasnap_bls"].append((a1, a2))
+                            dat["allpols"]["intrasnap_vals"].append(val)
+                            dat["allpols"]["intrasnap_bls"].append((a1, a2))
+                        else:
+                            dat[pol]["intranode_vals"].append(val)
+                            dat[pol]["intranode_bls"].append((a1, a2))
+                            dat["allpols"]["intranode_vals"].append(val)
+                            dat["allpols"]["intranode_bls"].append((a1, a2))
+                    else:
+                        dat[pol]["internode_vals"].append(val)
+                        dat[pol]["internode_bls"].append((a1, a2))
+                        dat["allpols"]["internode_vals"].append(val)
+                        dat["allpols"]["internode_bls"].append((a1, a2))
+    return dat
