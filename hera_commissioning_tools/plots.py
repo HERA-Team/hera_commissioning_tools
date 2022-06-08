@@ -467,9 +467,7 @@ def auto_waterfall_lineplot(
             plt.close()
             return
         if mean_sub is False:
-            im = plt.imshow(
-                d, norm=colors.LogNorm(), aspect="auto", vmin=vmin, vmax=vmax
-            )
+            im = plt.imshow(d, norm=colors.LogNorm(vmin=vmin, vmax=vmax), aspect="auto")
         else:
             ms = np.subtract(np.log10(dat), np.nanmean(np.log10(dat), axis=0))
             im = plt.imshow(ms, aspect="auto", vmin=vmin, vmax=vmax)
@@ -1466,6 +1464,9 @@ def plot_single_matrix(
     title="Corr Matrix",
     incAntLines=False,
     incAntLabels=True,
+    antfontsize=6,
+    labelfontsize=18,
+    nodefontsize=14,
 ):
     """
     Function to plot a single correlation matrix (rather than the standard 4x4 set of matrices).
@@ -1502,6 +1503,12 @@ def plot_single_matrix(
         Option to include faint blue lines along the border between each antenna. Default is False.
     incAntLabels: Boolean
         Option to include antenna number labels on the plot. Default is True.
+    antfontsize: Int
+        Font size for antenna number labels.
+    labelfontsize: Int
+        Font size of axis titles
+    nodefontsize: Int
+        Font size of node numbers.
     """
     from matplotlib import colors, cm
     from astropy.coordinates import EarthLocation
@@ -1582,12 +1589,14 @@ def plot_single_matrix(
         n += len(nodeDict[node]["ants"])
         axs.axhline(len(antnums) - n + 0.5, lw=5)
         axs.axvline(n + 0.5, lw=5)
-        axs.text(n - len(nodeDict[node]["ants"]) / 2, -1.7, node, fontsize=14)
+        axs.text(n - len(nodeDict[node]["ants"]) / 2, -1.7, node, fontsize=nodefontsize)
     if incAntLines is True:
         for a in range(len(antnums)):
             axs.axhline(len(antnums) - a + 0.5, lw=1, alpha=0.5)
             axs.axvline(a + 0.5, lw=1, alpha=0.5)
-    axs.text(0.42, -0.05, "Node Number", transform=axs.transAxes, fontsize=18)
+    axs.text(
+        0.42, -0.05, "Node Number", transform=axs.transAxes, fontsize=labelfontsize
+    )
     n = 0
     for node in sorted(inclNodes):
         n += len(nodeDict[node]["ants"])
@@ -1598,15 +1607,20 @@ def plot_single_matrix(
             fontsize=14,
         )
     axs.text(
-        1.04, 0.4, "Node Number", rotation=270, transform=axs.transAxes, fontsize=18
+        1.04,
+        0.4,
+        "Node Number",
+        rotation=270,
+        transform=axs.transAxes,
+        fontsize=labelfontsize,
     )
     axs.set_xticks(np.arange(0, nantsTotal) + 1)
-    axs.set_xticklabels(antnums, rotation=90, fontsize=6)
+    axs.set_xticklabels(antnums, rotation=90, fontsize=antfontsize)
     axs.xaxis.set_ticks_position("top")
     axs.set_yticks(np.arange(nantsTotal, 0, -1))
-    axs.set_yticklabels(antnums, fontsize=6)
+    axs.set_yticklabels(antnums, fontsize=antfontsize)
     cbar_ax = fig.add_axes([1, 0.05, 0.015, 0.89])
-    cbar_ax.set_xlabel(r"$|C_{ij}|$", rotation=0, fontsize=18)
+    cbar_ax.set_xlabel(r"$|C_{ij}|$", rotation=0, fontsize=labelfontsize)
     fig.colorbar(im, cax=cbar_ax, format="%.2f")
     fig.subplots_adjust(top=1.28, wspace=0.05, hspace=1.1)
     fig.tight_layout(pad=2)
@@ -1627,6 +1641,7 @@ def plotCorrMatrices(
     logScale=False,
     crossPolCheck=False,
     incAntLabels=True,
+    antfontsize=6,
 ):
     """
     Plots a matrix representing the phase correlation of each baseline.
@@ -1651,6 +1666,8 @@ def plotCorrMatrices(
         Option to do a check for cross-polarized antennas - will plot the difference between polarizations instead of each of the 4 standard pols.
     incAntLabels: Bool
         Option to include antenna number labels along the side of the matrices.
+    antfontsize: Int
+        Font size for antenna number labels.
     """
     from matplotlib import colors
     from astropy.coordinates import EarthLocation
@@ -1697,7 +1714,7 @@ def plotCorrMatrices(
             )
         if incAntLabels:
             axs[i][p % 2].set_xticks(np.arange(0, nantsTotal) + 1)
-            axs[i][p % 2].set_xticklabels(antnumsAll, rotation=90, fontsize=6)
+            axs[i][p % 2].set_xticklabels(antnumsAll, rotation=90, fontsize=antfontsize)
             axs[i][p % 2].xaxis.set_ticks_position("top")
         else:
             axs[i][p % 2].set_xticks([])
@@ -1729,9 +1746,9 @@ def plotCorrMatrices(
     axs[1][1].set_yticks([])
     if incAntLabels:
         axs[0][0].set_yticks(np.arange(nantsTotal, 0, -1))
-        axs[0][0].set_yticklabels(antnumsAll, fontsize=6)
+        axs[0][0].set_yticklabels(antnumsAll, fontsize=antfontsize)
         axs[1][0].set_yticks(np.arange(nantsTotal, 0, -1))
-        axs[1][0].set_yticklabels(antnumsAll, fontsize=6)
+        axs[1][0].set_yticklabels(antnumsAll, fontsize=antfontsize)
     else:
         axs[0][0].set_yticks([])
         axs[1][0].set_yticks([])
@@ -1750,3 +1767,154 @@ def plotCorrMatrices(
     plt.tight_layout()
     plt.show()
     plt.close("all")
+
+
+def makeCorrMatrices(
+    HHfiles=None,
+    use_ants="all",
+    sm=None,
+    df=None,
+    nfilesUse=10,
+    freq_inds=[],
+    nanDiffs=False,
+    pols=["EE", "NN", "EN", "NE"],
+    interleave="even_odd",
+    printStatusUpdates=False,
+):
+    """
+    Wrapper function to calculate correlation matrices and plot the real and imaginary components, as well as a version on a linlog scale that allows us to more easily compare the real metric value to the expected real value as estimated by the range of the imaginary values.
+
+    Parameters:
+    -----------
+    HHfiles: List
+        List of sum files (not include auto files) to get data from. Required if either sm or df are not provided.
+    use_ants: List
+        List of antennas to use.
+    sm: UVData Object
+        UVData object containing sum visibilities. If provided, this data will be used to calculate the metric. If set to None, new data will be read in using the HHfiles list provided. Default is None. Required if HHfiles is not provided.
+    df: UVData Object
+        UVData object containing diff visibilities. If provided, this data will be used to calculate the metric. If set to None, new data will be read in using the HHfiles list provided. Default is None. Required if HHfiles is not provided.
+    nfilesUse: Int
+        Number of files to integrate over when calculating the metric. Default is 10.
+    freq_inds: List
+        Frequency indices used to clip the data. Format should be [minimum frequency index, maximum frequency index]. The data will be averaged over all frequencies between the two indices. The default is [], which means the metric will average over all frequencies.
+    savefig: Boolean
+        Option to write out the figure.
+    nanDiffs: Boolean
+        Option to set all diff values of zero to NaN. Useful when there are issues causing occasional zeros in the diffs, which will cause issues when dividing by the diffs. Setting to NaN allows a nanaverage to mitigate the issue. Default is False.
+    pols: List
+        List of polarizations to calculate the metric for. Default is ['EE','NN','EN','NE'].
+    interleave: String
+        Sets the interleave interval. Options are 'even_odd' or 'adjacent_integration'. When set to 'even_odd', the evens and odds in the metric calculation are set using the sums and diffs. When set to 'adjacent_integration', adjacent integrations are used in place of the evens and odds for the interleave.
+    printStatusUpdates: Boolean
+        Option to print what step it's on to get regular status updates as function is running. Default is False.
+
+    Returns:
+    ----------
+    sm: UVData Object
+        Sum visibilities.
+    df: UVData Object
+        Diff visibilities.
+    corr_real:
+        2x2 numpy array containing the real values of the correlation matrix.
+    corr_imag:
+        2x2 numpy array containing the imaginary values of the correlation matrix.
+    perBlSummary: Dict
+        Dictionary containing metric summary data for each polarization, separated by node, snap, and snap input connectivity.
+    """
+    from pyuvdata import UVData
+
+    if HHfiles is None and sm is None:
+        print(
+            "##### Must either pass in a list of files or a UVData object for both sum and diff visibilities"
+        )
+    if HHfiles is not None:
+        nHH = len(HHfiles)
+        use_files_sum = HHfiles[nHH // 2 - nfilesUse // 2 : nHH // 2 + nfilesUse // 2]
+        use_files_diff = [file.split("sum")[0] + "diff.uvh5" for file in use_files_sum]
+        if len(freq_inds) == 0:
+            print("All frequency bins")
+        else:
+            nfreqs = freq_inds[1] - freq_inds[0]
+            print(f"{nfreqs} frequency bins")
+        print(f"{len(use_files_sum)} times")
+
+    if use_ants == "all":
+        if sm is not None:
+            use_ants = sm.get_ants()
+        else:
+            uv_single = UVData()
+            uv_single.read(HHfiles[0])
+            use_ants = uv_single.get_ants()
+            del uv_single
+
+    if sm is None:
+        sm = UVData()
+        if printStatusUpdates:
+            print("Reading sum files")
+        sm.read(use_files_sum, antenna_nums=use_ants)
+
+    if df is None:
+        df = UVData()
+        if printStatusUpdates:
+            print("Reading diff files")
+        df.read(use_files_diff, antenna_nums=use_ants)
+
+    # Calculate real and imaginary correlation matrices
+    if printStatusUpdates:
+        print("Calculating real matrix components")
+    corr_real, perBlSummary, _ = utils.calc_corr_metric(
+        sm,
+        df,
+        norm="real",
+        freq_inds=freq_inds,
+        nanDiffs=nanDiffs,
+        pols=pols,
+        interleave=interleave,
+    )
+    if printStatusUpdates:
+        print("Calculating imaginary matrix components")
+    corr_imag, _, _ = utils.calc_corr_metric(
+        sm,
+        df,
+        norm="imag",
+        freq_inds=freq_inds,
+        nanDiffs=nanDiffs,
+        pols=pols,
+        interleave=interleave,
+    )
+
+    # Plot matrix of real values
+    if printStatusUpdates:
+        print("Plotting real matrix")
+    plot_single_matrix(
+        sm, corr_real, logScale=True, vmin=0.01, title="|Real|", pols=pols
+    )
+    # Plot matrix of imaginary values
+    if printStatusUpdates:
+        print("Plotting imaginary matrix")
+    plot_single_matrix(
+        sm,
+        corr_imag,
+        logScale=False,
+        vmin=-0.03,
+        vmax=0.03,
+        cmap="bwr",
+        title="Imaginary",
+        pols=pols,
+    )
+    # Plot matrix of real values on linlog color scale.
+    if printStatusUpdates:
+        print("Plotting linlog matrix")
+    plot_single_matrix(
+        sm,
+        corr_real,
+        dataRef=corr_imag,
+        linlog=True,
+        vmin=0.01,
+        title="Real",
+        cmap="bwr",
+        pols=pols,
+    )
+
+    return sm, df, corr_real, corr_imag, perBlSummary
