@@ -1918,3 +1918,301 @@ def makeCorrMatrices(
     )
 
     return sm, df, corr_real, corr_imag, perBlSummary
+
+
+def plotCorrSpectraAndHists(
+    sm,
+    df,
+    perBlSummary="auto",
+    interleave="even_odd",
+    interval=1,
+    savefig=False,
+    outfig="",
+    freq_range=[132, 148],
+    pol="allpols",
+    percentage=10,
+    avg="mean",
+    printStatusUpdates=False,
+):
+    """
+    sm: UVData
+        Object containing sum visibilities.
+    df: UVData
+        Object containing diff visibilities.
+    perBlSummary: Dict or 'auto'
+        Summary of correlation metric data - if set to auto, it will be calculated based on the provided data objects.
+    interleave: String
+        Can be 'even_odd' (default), which sets the standard even odd interleave, or 'ns', which will result in an interleave every n seconds, where n is set by the 'interval' parameter.
+    interval: Int
+        Parameter to set the interleave interval if interleave = 'ns'. Units are number of integrations.
+    savefig: Boolean
+        Option to save out the figure.
+    outfig: String
+        Full path to write out the figure if savefig is True.
+    freq_range: List
+        Frequency range to use points from in the histogram.
+    pol: String
+        Polarization to use - can be any polarization key that exists in perBlSummary.
+    percentage: Int
+        Random percentage of data point to actually plot - if set to 100, matplotlib can take multiple hours to render. Recommended value is in the range of 5 to 15 percent.
+    avg: String
+        Sets the time averaging of the data. Can be 'mean', 'median', or None to not do any time averaging.
+    printStatusUpdates: Boolean
+        Option to print what step it's on to get regular status updates as function is running. Default is False.
+
+    Returns:
+    --------
+    perBlSummary: Dict
+        Dictionary of correlation metric values.
+    """
+    from matplotlib.lines import Line2D
+
+    if perBlSummary == "auto":
+        print("Calculating perBlSummary")
+        perBlSummary = utils.getPerBaselineSummary(
+            sm, df, interleave=interleave, interval=interval, avg=avg
+        )
+
+    if printStatusUpdates:
+        print("Calculating Arrays")
+    c = np.asarray(perBlSummary[pol]["all_vals"])
+    c_re = np.reshape(c, (np.shape(c)[0], np.shape(c)[1] // 1536, 1536))
+    c_avg = np.nanmean(c_re, axis=(0, 1))
+
+    freqs = sm.freq_array[0] * 1e-6
+    freqs_all = np.tile(freqs, np.shape(c)[0] * int(np.shape(c)[1] / 1536))
+    c_all = np.asarray(c).flatten()
+    # Take a random subset of the data - with the full set of data points, matplotlib will likely fail to render.
+    c_all, inds = utils.getRandPercentage(c_all, percentage)
+    freqs_all = [freqs_all[int(i)] for i in inds]
+
+    c_snap_full = np.asarray(perBlSummary[pol]["intrasnap_vals"])
+    freqs_snap = np.tile(freqs, np.shape(c_snap_full)[0] * int(np.shape(c)[1] / 1536))
+    c_snap = np.asarray(c_snap_full).flatten()
+    c_snap, inds = utils.getRandPercentage(c_snap, percentage)
+    freqs_snap = [freqs_snap[int(i)] for i in inds]
+
+    c_node_full = np.asarray(perBlSummary[pol]["intranode_vals"])
+    freqs_node = np.tile(freqs, np.shape(c_node_full)[0] * int(np.shape(c)[1] / 1536))
+    c_node = np.asarray(c_node_full).flatten()
+    c_node, inds = utils.getRandPercentage(c_node, percentage)
+    freqs_node = [freqs_node[int(i)] for i in inds]
+
+    freq_min_ind = np.argmin(np.abs(np.subtract(freqs, freq_range[0])))
+    freq_max_ind = np.argmin(np.abs(np.subtract(freqs, freq_range[1])))
+
+    hist_vals = c[:, freq_min_ind:freq_max_ind].flatten()
+    hist_vals_snap = c_snap_full[:, freq_min_ind:freq_max_ind].flatten()
+    hist_vals_node = c_node_full[:, freq_min_ind:freq_max_ind].flatten()
+
+    if printStatusUpdates:
+        print("Plotting")
+
+    fig, axes = plt.subplots(3, 2, figsize=(16, 16))
+
+    legend_elements = [
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            label="internode",
+            markerfacecolor="b",
+            color="w",
+            alpha=0.5,
+        ),
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            label="intranode",
+            markerfacecolor="c",
+            color="w",
+            alpha=0.5,
+        ),
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            label="intrasnap",
+            markerfacecolor="r",
+            color="w",
+            alpha=0.5,
+        ),
+    ]
+
+    axes[0][0].scatter(
+        freqs_all, np.real(c_all), s=0.5, alpha=0.01, color="b", label="internode"
+    )
+    axes[0][0].scatter(
+        freqs_node, np.real(c_node), s=1.5, alpha=0.1, color="c", label="intranode"
+    )
+    axes[0][0].scatter(
+        freqs_snap, np.real(c_snap), s=1.5, alpha=0.1, color="r", label="intrasnap"
+    )
+    axes[0][0].scatter(freqs, np.real(c_avg), s=1, color="k")
+    axes[0][0].legend(handles=legend_elements, fontsize=12)
+    axes[0][0].set_ylim(-1, 1)
+    if interleave == "even_odd":
+        axes[0][0].set_ylabel("Re(even x odd*)")
+    else:
+        axes[0][0].set_ylabel(r"Re(T$_n$ x T$_{(n+}$" + str(interval) + r"$_)$")
+    axes[0][0].set_xlabel("Frequency (MHz)")
+    axes[0][0].axhline(0, color="r", linewidth=1)
+    axes[0][0].axvline(freq_range[0], color="g")
+    axes[0][0].axvline(freq_range[1], color="g")
+    axes[0][0].set_title("Real Spectra")
+
+    axes[0][1].scatter(
+        freqs_all, np.imag(c_all), s=0.5, alpha=0.01, color="b", label="internode"
+    )
+    axes[0][1].scatter(
+        freqs_node, np.imag(c_node), s=1.5, alpha=0.1, color="c", label="intranode"
+    )
+    axes[0][1].scatter(
+        freqs_snap, np.imag(c_snap), s=1.5, alpha=0.1, color="r", label="intrasnap"
+    )
+    axes[0][1].scatter(freqs, np.imag(c_avg), s=1, color="k")
+    axes[0][1].set_ylim(-1, 1)
+    if interleave == "even_odd":
+        axes[0][1].set_ylabel("Im(even x odd*)")
+    else:
+        axes[0][1].set_ylabel(r"Im(T$_n$ x T$_{(n+}$" + str(interval) + r"$_)$")
+    axes[0][1].set_xlabel("Frequency (MHz)")
+    axes[0][1].axhline(0, color="r", linewidth=1)
+    axes[0][1].axvline(freq_range[0], color="g")
+    axes[0][1].axvline(freq_range[1], color="g")
+    axes[0][1].set_title("Imag Spectra")
+
+    bins = np.linspace(-1.05, 1.05, 44)
+
+    ####### Connectivity Histograms ######
+    axes[1][0].hist(
+        np.real(hist_vals),
+        log=True,
+        bins=bins,
+        edgecolor="b",
+        fill=False,
+        label="internode",
+        linewidth=2,
+        density=True,
+    )
+    axes[1][0].hist(
+        np.real(hist_vals_node),
+        log=True,
+        bins=bins,
+        edgecolor="c",
+        fill=False,
+        label="intranode",
+        linewidth=2,
+        density=True,
+    )
+    axes[1][0].hist(
+        np.real(hist_vals_snap),
+        log=True,
+        bins=bins,
+        edgecolor="r",
+        fill=False,
+        label="intrasnap",
+        linewidth=2,
+        density=True,
+    )
+    axes[1][0].set_xlim(-1, 1)
+    axes[1][0].set_ylim(10e-4, 10e0)
+    axes[1][0].set_title("Real Histogram")
+
+    axes[1][1].hist(
+        np.imag(hist_vals),
+        log=True,
+        bins=bins,
+        edgecolor="b",
+        fill=False,
+        label="internode",
+        linewidth=2,
+        density=True,
+    )
+    axes[1][1].hist(
+        np.imag(hist_vals_node),
+        log=True,
+        bins=bins,
+        edgecolor="c",
+        fill=False,
+        label="intranode",
+        linewidth=2,
+        density=True,
+    )
+    axes[1][1].hist(
+        np.imag(hist_vals_snap),
+        log=True,
+        bins=bins,
+        edgecolor="r",
+        fill=False,
+        label="intrasnap",
+        linewidth=2,
+        density=True,
+    )
+    axes[1][1].set_xlim(-1, 1)
+    axes[1][1].set_ylim(10e-4, 10e0)
+    axes[1][1].set_title("Imag Histogram")
+    axes[1][0].legend()
+
+    if printStatusUpdates:
+        print("Real vs imag histograms")
+    ###### Real vs Imag histograms ######
+    axes[2][0].hist(
+        np.real(hist_vals),
+        bins=bins,
+        edgecolor="b",
+        fill=False,
+        label="Real",
+        density=True,
+        linewidth=2,
+    )
+    axes[2][1].hist(
+        np.real(hist_vals),
+        log=True,
+        bins=bins,
+        edgecolor="b",
+        fill=False,
+        label="Real",
+        density=True,
+        linewidth=2,
+    )
+    axes[2][0].set_xlim(-1, 1)
+    axes[2][0].set_ylim(0, 3)
+
+    axes[2][0].hist(
+        np.imag(hist_vals),
+        bins=bins,
+        edgecolor="g",
+        fill=False,
+        label="Imag",
+        density=True,
+    )
+    axes[2][1].hist(
+        np.imag(hist_vals),
+        log=True,
+        bins=bins,
+        edgecolor="g",
+        fill=False,
+        label="Imag",
+        density=True,
+        linewidth=2,
+    )
+    axes[2][1].set_xlim(-1, 1)
+    axes[2][1].set_ylim(10e-4, 10e0)
+    axes[2][0].legend()
+    axes[2][0].set_title("All bls, linear scale")
+    axes[2][1].set_title("All bls, log scale")
+
+    if printStatusUpdates:
+        print("Displaying")
+    if interleave == "ns":
+        interleave = f"{interval*10}s"
+    fig.tight_layout(pad=3)
+    fig.suptitle(f"{interleave} interleave - {pol} pol")
+    if savefig is True:
+        plt.savefig(outfig, bbox_inches="tight")
+        plt.close()
+    else:
+        plt.show()
+    return perBlSummary
