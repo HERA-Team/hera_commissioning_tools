@@ -953,3 +953,192 @@ def getPerBaselineSummary(
                         dat["allpols"]["internode_vals"].append(val)
                         dat["allpols"]["internode_bls"].append((a1, a2))
     return dat
+
+
+def clean_ds(
+    bls,
+    uvd_ds,
+    uvd_diff,
+    area=500.0,
+    tol=1e-7,
+    skip_wgts=0.2,
+    N_threads=12,
+    freq_range=[45, 240],
+    pols=["NN", "EE", "NE", "EN"],
+    return_option="all",
+):
+    """
+    Written by Honggeun Kim
+    <Insert doc string>
+    """
+    from multiprocessing import Process, Queue
+
+    _data_cleaned_sq, d_even, d_odd = {}, {}, {}
+
+    if isinstance(area, float) or isinstance(area, int):
+        area = np.array(area).repeat(len(bls))
+
+    # Set up multiprocessing and the CLEAM will work inside "func_clean_ds_mpi" function
+    queue = Queue()
+    for rank in range(N_threads):
+        p = Process(
+            target=func_clean_ds_mpi,
+            args=(
+                rank,
+                queue,
+                N_threads,
+                bls,
+                pols,
+                uvd_ds,
+                uvd_diff,
+                area,
+                tol,
+                skip_wgts,
+                freq_range,
+            ),
+        )
+        p.start()
+
+    # Collect the CLEANed data from different threads
+    for rank in range(N_threads):
+        data = queue.get()
+        _d_cleaned_sq = data[0]
+        d_e = data[1]
+        d_o = data[2]
+        _data_cleaned_sq = {**_data_cleaned_sq, **_d_cleaned_sq}
+        d_even = {**d_even, **d_e}
+        d_odd = {**d_odd, **d_o}
+
+    if return_option == "dspec":
+        return _data_cleaned_sq
+    elif return_option == "vis":
+        return d_even, d_odd
+    elif return_option == "all":
+        return _data_cleaned_sq, d_even, d_odd
+
+
+def func_clean_ds_mpi(
+    rank,
+    queue,
+    N_threads,
+    bls,
+    pols,
+    uvd_ds,
+    uvd_diff,
+    area,
+    tol,
+    skip_wgts,
+    freq_range,
+):
+    """
+    Written by Honggeun Kim
+
+    <Insert doc string>
+    """
+    from uvtools import dspec
+
+    _data_cleaned_sq, d_even, d_odd = {}, {}, {}
+
+    N_jobs_each_thread = len(bls) * len(pols) / N_threads
+    k = 0
+    for i, bl in enumerate(bls):
+        for j, pol in enumerate(pols):
+            which_rank = int(k / N_jobs_each_thread)
+            if rank == which_rank:
+                key = (bl[0], bl[1], pol)
+                d_even[key], d_odd[key] = _clean_per_bl_pol(
+                    bl, pol, uvd_ds, uvd_diff, area[i], tol, skip_wgts, freq_range
+                )
+                win = dspec.gen_window("bh7", d_even[key].shape[1])
+                _d_even = np.fft.fftshift(np.fft.ifft(d_even[key] * win), axes=1)
+                _d_odd = np.fft.fftshift(np.fft.ifft(d_odd[key] * win), axes=1)
+                _data_cleaned_sq[key] = _d_even * _d_odd.conj()
+            k += 1
+    queue.put([_data_cleaned_sq, d_even, d_odd])
+
+
+def _clean_per_bl_pol(bl, pol, uvd, uvd_diff, area, tol, skip_wgts, freq_range):
+    """
+    CLEAN function of delay spectra at given baseline and polarization.
+
+    Parameters:
+    -----------
+    bl: Tuple
+        Tuple of baseline (ant1, ant2)
+    pol: String
+        String of polarization
+    uvd: UVData Object
+        Sample observation from the desired night to compute delay spectra
+    uvd_diff: UVData Object
+        Diff of observation from the desired night to calculate even/odd visibilities and delay spectra
+    area: Float
+        The half-width (i.e. the width of the positive part) of the region in fourier space, symmetric about 0, that is filtered out in ns.
+    tol: Float
+        CLEAN algorithm convergence tolerance (see aipy.deconv.clean)
+    skip_wgts: Float
+        Skips filtering rows with very low total weight (unflagged fraction ~< skip_wgt). See uvtools.dspec.high_pass_fourier_filter for more details
+    freq_range: Float
+        Frequecy range for making delay spectra in MHz
+
+    Returns:
+    --------
+    d_even: Dict
+        CLEANed even visibilities, formatted as _d_even[(ant1, ant2, pol)]
+    d_odd: Dict
+        CLEANed odd visibilities, formatted as _d_odd[(ant1, ant2, pol)]
+    """
+    from uvtools import dspec
+
+    key = (bl[0], bl[1], pol)
+    freqs = uvd.freq_array[0]
+    FM_idx = np.searchsorted(freqs * 1e-6, [85, 110])
+    flag_FM = np.zeros(freqs.size, dtype=bool)
+    flag_FM[FM_idx[0] : FM_idx[1]] = True
+
+    freq_low, freq_high = np.sort(freq_range)
+    idx_freqs = np.where(
+        np.logical_and(freqs * 1e-6 > freq_low, freqs * 1e-6 < freq_high)
+    )[0]
+    freqs = freqs[idx_freqs]
+
+    data = uvd.get_data(key)[:, idx_freqs]
+    diff = uvd_diff.get_data(key)[:, idx_freqs]
+    wgts = (~uvd.get_flags(key) * ~flag_FM[np.newaxis, :])[:, idx_freqs].astype(float)
+
+    idx_zero = np.where(np.abs(data) == 0)[0]
+    if len(idx_zero) / len(data) < 0.5:
+        d_even = (data + diff) * 0.5
+        d_odd = (data - diff) * 0.5
+        d_even_cl, d_even_rs, _ = dspec.high_pass_fourier_filter(
+            d_even,
+            wgts,
+            area * 1e-9,
+            freqs[1] - freqs[0],
+            tol=tol,
+            skip_wgt=skip_wgts,
+            window="bh7",
+        )
+        d_odd_cl, d_odd_rs, _ = dspec.high_pass_fourier_filter(
+            d_odd,
+            wgts,
+            area * 1e-9,
+            freqs[1] - freqs[0],
+            tol=tol,
+            skip_wgt=skip_wgts,
+            window="bh7",
+        )
+
+        idx = np.where(np.mean(np.abs(d_even_cl), axis=1) == 0)[0]
+        d_even_cl[idx] = np.nan
+        d_even_rs[idx] = np.nan
+        idx = np.where(np.mean(np.abs(d_odd_cl), axis=1) == 0)[0]
+        d_odd_cl[idx] = np.nan
+        d_odd_rs[idx] = np.nan
+
+        d_even = d_even_cl + d_even_rs
+        d_odd = d_odd_cl + d_odd_rs
+    else:
+        d_even = np.zeros_like(data)
+        d_odd = np.zeros_like(data)
+
+    return d_even, d_odd
