@@ -190,19 +190,18 @@ def plot_autos(
 
 def plot_wfs(
     uvd,
-    pol="xx",
-    mean_sub=False,
+    pol="NN",
+    plotType="raw",
     savefig=False,
     vmin=None,
     vmax=None,
-    vminSub=None,
-    vmaxSub=None,
     wrongAnts=[],
     logscale=True,
     uvd_diff=None,
     metric=None,
     title="",
     dtype="sky",
+    _data_cleaned_sq="auto",
 ):
     """
     Function to plot auto waterfalls of all antennas, with a row for each node, sorted by SNAP and within that by
@@ -214,18 +213,14 @@ def plot_wfs(
         UVData object containing all sum data to plot.
     pol: String
         Polarization to plot. Can be any polarization string accepted by pyuvdata.
-    mean_sub: Boolean
-        Option to plot mean-subtracted waterfalls, where the average spectrum over the night is subtracted out.
+    plotType: String
+        Option to specify what data to plot. Can be 'raw' (raw visibilities), 'mean_sub' (the average spectrum over the night is subtracted out), or 'delay' (delay spectra).
     savefig: Boolean
         Option to write out the figure
     vmin: float
-        Colorbar minimum value when mean_sub is False. Set to None to use default values, which vary depending on dtype.
+        Colorbar minimum value. Set to None to use default values, which vary depending on dtype and plotType.
     vmax: float
-        Colorbar maximum value when mean_sub is False. Set to None to use default values, which vary depending on dtype.
-    vminSub: float
-        Colorbar minimum value when mean_sub is True. Set to None to use default values, which vary depending on dtype.
-    vmaxSub: float
-        Colorbar maximum value when mean_sub is True. Set to None to use default values, which vary depending on dtype.
+        Colorbar maximum value. Set to None to use default values, which vary depending on dtype and plotType.
     wrongAnts: List
         Optional, list of antennas that are identified as observing the wrong datatype (seeing the sky when we are
         trying to observe load, for example) or are severely broken/dead. These antennas will be greyed out and
@@ -251,8 +246,8 @@ def plot_wfs(
     """
     from hera_mc import cm_active
 
-    nodes, antDict, inclNodes = utils.generate_nodeDict(uvd)
-    sorted_ants, sortedSnapLocs, sortedSnapInputs = utils.sort_antennas(uvd)
+    nodes, _, inclNodes = utils.generate_nodeDict(uvd)
+    sorted_ants, _, _ = utils.sort_antennas(uvd)
     freqs = (uvd.freq_array[0]) * 10 ** (-6)
     times = uvd.time_array
     lsts = uvd.lst_array * 3.819719
@@ -260,20 +255,35 @@ def plot_wfs(
     lsts = [lsts[ind] for ind in sorted(inds)]
     maxants = 0
     if dtype == "sky":
-        vminAuto = 6.5
-        vmaxAuto = 8
-        vminSubAuto = -0.07
-        vmaxSubAuto = 0.07
+        if plotType == "raw":
+            vminAuto = 6.5
+            vmaxAuto = 8
+        elif plotType == "mean_sub":
+            vminAuto = -0.07
+            vmaxAuto = 0.07
+        elif plotType == "delay":
+            vminAuto = -50
+            vmaxAuto = -30
     elif dtype == "load":
-        vminAuto = 5.5
-        vmaxAuto = 7.5
-        vminSubAuto = -0.04
-        vmaxSubAuto = 0.04
+        if plotType == "raw":
+            vminAuto = 5.5
+            vmaxAuto = 7.5
+        elif plotType == "mean_sub":
+            vminAuto = -0.04
+            vmaxAuto = 0.04
+        elif plotType == "delay":
+            vminAuto = -50
+            vmaxAuto = -30
     elif dtype == "noise":
-        vminAuto = 7.5
-        vmaxAuto = 7.52
-        vminSubAuto = -0.0005
-        vmaxSubAuto = 0.0005
+        if plotType == "raw":
+            vminAuto = 7.5
+            vmaxAuto = 7.52
+        elif plotType == "mean_sub":
+            vminAuto = -0.0005
+            vmaxAuto = 0.0005
+        elif plotType == "delay":
+            vminAuto = -50
+            vmaxAuto = -30
     else:
         print(
             "##################### dtype must be one of sky, load, or noise #####################"
@@ -282,10 +292,6 @@ def plot_wfs(
         vmin = vminAuto
     if vmax is None:
         vmax = vmaxAuto
-    if vminSub is None:
-        vminSub = vminSubAuto
-    if vmaxSub is None:
-        vmaxSub = vmaxSubAuto
 
     for node in nodes:
         n = len(nodes[node]["ants"])
@@ -328,18 +334,52 @@ def plot_wfs(
                     dat = (dat - dat_diff) / 2
                 if logscale is True:
                     dat = np.log10(np.abs(dat))
-            if mean_sub:
+            if plotType == "mean_sub":
                 ms = np.subtract(dat, np.nanmean(dat, axis=0))
+                xticks = [int(i) for i in np.linspace(0, len(freqs) - 1, 3)]
+                xticklabels = np.around(freqs[xticks], 0)
+                xlabel = "Freq (MHz)"
                 im = ax.imshow(
                     ms,
-                    vmin=vminSub,
-                    vmax=vmaxSub,
+                    vmin=vmin,
+                    vmax=vmax,
                     aspect="auto",
                     interpolation="nearest",
                 )
-            else:
+            elif plotType == "delay":
+                bls = bls = [(ant, ant) for ant in uvd.get_ants()]
+                if _data_cleaned_sq == "auto":
+                    _data_cleaned_sq, _, _ = utils.clean_ds(
+                        bls, uvd, uvd_diff, N_threads=14
+                    )
+                key = (a, a, pol)
+                norm = np.abs(_data_cleaned_sq[key]).max(axis=1)[:, np.newaxis]
+                ds = 10.0 * np.log10(np.sqrt(np.abs(_data_cleaned_sq[key]) / norm))
+                taus = (
+                    np.fft.fftshift(np.fft.fftfreq(freqs.size, np.diff(freqs)[0])) * 1e3
+                )
+                xticks = [int(i) for i in np.linspace(0, len(taus) - 1, 4)]
+                xticklabels = np.around(taus[xticks], 0)
+                xlabel = "Tau (ns)"
+                print(np.min(ds))
+                print(np.max(ds))
+                im = ax.imshow(
+                    ds,
+                    vmin=vmin,
+                    vmax=vmax,
+                    aspect="auto",
+                    interpolation="nearest",
+                )
+            elif plotType == "raw":
+                xticks = [int(i) for i in np.linspace(0, len(freqs) - 1, 3)]
+                xticklabels = np.around(freqs[xticks], 0)
+                xlabel = "Freq (MHz)"
                 im = ax.imshow(
                     dat, vmin=vmin, vmax=vmax, aspect="auto", interpolation="nearest"
+                )
+            else:
+                print(
+                    "##### plotType parameter must be either raw, mean_sub, or delay #####"
                 )
             if a in wrongAnts:
                 ax.set_title(f"{a} ({abb})", fontsize=10, backgroundcolor="red")
@@ -348,11 +388,9 @@ def plot_wfs(
                     f"{a} ({abb})", fontsize=10, backgroundcolor=status_colors[status]
                 )
             if i == len(inclNodes) - 1:
-                xticks = [int(i) for i in np.linspace(0, len(freqs) - 1, 3)]
-                xticklabels = np.around(freqs[xticks], 0)
                 ax.set_xticks(xticks)
                 ax.set_xticklabels(xticklabels)
-                ax.set_xlabel("Freq (MHz)", fontsize=10)
+                ax.set_xlabel(xlabel, fontsize=10)
                 [t.set_rotation(70) for t in ax.get_xticklabels()]
             else:
                 ax.set_xticklabels([])
@@ -383,7 +421,7 @@ def plot_wfs(
     plt.close()
 
 
-def auto_waterfall_lineplot(
+def waterfall_lineplot(
     uv,
     ant,
     jd=None,
@@ -437,7 +475,6 @@ def auto_waterfall_lineplot(
 
     jd = np.floor(uv.time_array[0])
     h = cm_active.get_active(at_date=jd, float_format="jd")
-    status = utils.get_ant_status(h, ant)
 
     freq = uv.freq_array[0] * 1e-6
     if size == "large":
@@ -2445,3 +2482,116 @@ def plotSmithChartByNode(
             plt.savefig(outfig)
         plt.show()
         plt.close("all")
+
+
+def plot_wfs_delay(uvd, _data_sq, pol):
+    """
+    Waterfall diagram for autocorrelation delay spectrum.
+
+    Parameters:
+    -----------
+    uvd: UVData Object
+        Sample observation from the desired night, used for getting antenna information.
+    _data_sq: Dict
+        Square of delay spectra, formatted as _data_sq[(ant1, ant2, pol)]
+    pol: String
+        String of polarization
+    """
+    from hera_mc import cm_active
+    from matplotlib.lines import Line2D
+
+    if pol == "EE":
+        antpol = ["E"]
+    elif pol == "NN":
+        antpol = ["N"]
+    nodes, _, inclNodes = utils.generate_nodeDict(uvd, pols=antpol)
+    ants = uvd.get_ants()
+    sorted_ants = utils.sort_antennas(uvd, pols=antpol)
+    freqs = uvd.freq_array[0]
+    taus = np.fft.fftshift(np.fft.fftfreq(freqs.size, np.diff(freqs)[0])) * 1e9
+    times = uvd.time_array
+    lsts = uvd.lst_array * 3.819719
+    inds = np.unique(lsts, return_index=True)[1]
+    lsts = [lsts[ind] for ind in sorted(inds)]
+
+    maxants = 0
+    polnames = ["nn", "ee", "ne", "en"]
+    for node in nodes:
+        n = len(nodes[node]["ants"])
+        if n > maxants:
+            maxants = n
+
+    Nside = maxants
+    Yside = len(inclNodes)
+
+    t_index = 0
+    jd = times[t_index]
+    h = cm_active.get_active(at_date=jd, float_format="jd")
+
+    custom_lines = []
+    labels = []
+    for s in status_colors.keys():
+        c = status_colors[s]
+        custom_lines.append(Line2D([0], [0], color=c, lw=2))
+        labels.append(s)
+    ptitle = 1.92 / (Yside * 3)
+
+    fig, axes = plt.subplots(Yside, Nside, figsize=(12, 17 + (Yside - 10)))
+    fig.suptitle(" ", fontsize=14, y=1 + ptitle)
+    vmin, vmax = -50, -30
+    fig.legend(custom_lines, labels, bbox_to_anchor=(0.8, 1), ncol=3)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.subplots_adjust(left=0, bottom=0.1, right=0.9, top=0.95, wspace=0.1, hspace=0.3)
+
+    xticks = np.int32(np.ceil(np.linspace(0, len(taus) - 1, 5)))
+    xticklabels = np.around(taus[xticks], 0)
+    yticks = [int(i) for i in np.linspace(0, len(lsts) - 1, 6)]
+    yticklabels = [np.around(lsts[ytick], 1) for ytick in yticks]
+    for i, n in enumerate(inclNodes):
+        ants = nodes[n]["ants"]
+        j = 0
+        for _, a in enumerate(sorted_ants):
+            if a not in ants:
+                continue
+            status = utils.get_ant_status(h, a)
+            abb = status_abbreviations[status]
+            ax = axes[i, j]
+            key = (a, a, polnames[pol])
+            if pol == 0 or pol == 1:
+                norm = np.abs(_data_sq[key]).max(axis=1)[:, np.newaxis]
+            elif pol == 2:
+                key1 = (a, a, polnames[0])
+                key2 = (a, a, polnames[1])
+                norm = np.sqrt(np.abs(_data_sq[key1]) * np.abs(_data_sq[key2])).max(
+                    axis=1
+                )[:, np.newaxis]
+            ds = 10.0 * np.log10(np.sqrt(np.abs(_data_sq[key]) / norm))
+            im = ax.imshow(
+                ds, aspect="auto", interpolation="nearest", vmin=vmin, vmax=vmax
+            )
+            ax.set_title(
+                f"{a} ({abb})", fontsize=8, backgroundcolor=status_colors[status]
+            )
+            if i == len(inclNodes) - 1:
+                ax.set_xticks(xticks)
+                ax.set_xticklabels(xticklabels)
+                ax.set_xlabel("Delay (ns)", fontsize=10)
+                [t.set_rotation(70) for t in ax.get_xticklabels()]
+            else:
+                ax.set_xticks(xticks)
+                ax.set_xticklabels([])
+            if j != 0:
+                ax.set_yticks(yticks)
+                ax.set_yticklabels([])
+            else:
+                ax.set_ylabel("Time (LST)", fontsize=10)
+                ax.set_yticks(yticks)
+                ax.set_yticklabels(yticklabels)
+            j += 1
+        for k in range(j, maxants):
+            axes[i, k].axis("off")
+        pos = ax.get_position()
+        cbar_ax = fig.add_axes([0.91, pos.y0, 0.01, pos.height])
+        cbar = fig.colorbar(im, cax=cbar_ax, ticks=[-50, -45, -40, -35, -30])
+        cbar.set_label(f"Node {n}", rotation=270, labelpad=15)
+    fig.show()
