@@ -178,10 +178,6 @@ def detectWrongConnectionAnts(uvd, dtype="load"):
             spectrum = uvd.get_data(ant, ant, pol)
             stdev = np.std(spectrum)
             med = np.median(np.abs(spectrum))
-            #             if ant == 30:
-            #                 print(stdev)
-            #                 print(med)
-            #                 print(np.min(np.abs(spectrum)))
             if dtype == "load" and 80000 < stdev <= 4000000:
                 antOk = True
             elif dtype == "noise" and stdev <= 80000:
