@@ -38,6 +38,9 @@ def plot_autos(
     logscale=True,
     savefig=False,
     title="",
+    plot_nodes='all',
+    time_slice=False,
+    slice_freq_inds=[],
     dtype="sky",
 ):
     """
@@ -69,6 +72,7 @@ def plot_autos(
     """
     from astropy.time import Time
     from hera_mc import cm_active
+    import math
 
     nodes, antDict, inclNodes = utils.generate_nodeDict(uvd)
     sorted_ants, sortedSnapLocs, sortedSnapInputs = utils.sort_antennas(uvd)
@@ -76,12 +80,17 @@ def plot_autos(
     times = uvd.time_array
     maxants = 0
     for node in nodes:
+        if plot_nodes is not 'all' and node not in plot_nodes:
+            continue
         n = len(nodes[node]["ants"])
         if n > maxants:
             maxants = n
 
     Nside = maxants
-    Yside = len(inclNodes)
+    if plot_nodes == 'all':
+        Yside = len(inclNodes)
+    else:
+        Yside = len(plot_nodes)
 
     t_index = 0
     jd = times[t_index]
@@ -90,6 +99,8 @@ def plot_autos(
     h = cm_active.get_active(at_date=jd, float_format="jd")
 
     xlim = (np.min(freqs), np.max(freqs))
+    colorsx = ['gold','darkorange','orangered','red','maroon']
+    colorsy = ['powderblue','deepskyblue','dodgerblue','royalblue','blue']
 
     if ylim is None:
         if dtype == "sky":
@@ -106,7 +117,14 @@ def plot_autos(
     fig.tight_layout(rect=(0, 0, 1, 0.95))
     fig.subplots_adjust(left=0.1, bottom=0.1, right=0.9, top=1, wspace=0.05, hspace=0.3)
     k = 0
-    for i, n in enumerate(inclNodes):
+    i=-1
+    yrange_set = False
+    for _, n in enumerate(inclNodes):
+        if plot_nodes is not 'all':
+            inclNodes = plot_nodes
+            if n not in plot_nodes:
+                continue
+        i += 1
         ants = nodes[n]["ants"]
         j = 0
         for _, a in enumerate(sorted_ants):
@@ -114,9 +132,57 @@ def plot_autos(
                 continue
             status = utils.get_ant_status(h, a)
             ax = axes[i, j]
-            ax.set_xlim(xlim)
-            ax.set_ylim(ylim)
-            if logscale is True:
+            if time_slice is True:
+                colors = ['r','b']
+                lsts = uvd.lst_array * 3.819719
+                inds = np.unique(lsts, return_index=True)[1]
+                lsts = [lsts[ind] for ind in sorted(inds)]
+                dx = np.log10(np.abs(uvd.get_data((a,a,'xx'))))
+                for s,ind in enumerate(slice_freq_inds):
+                    dslice = dx[:,ind]
+                    (px,) = ax.plot(
+                        lsts,
+                        dslice,
+                        color=colorsx[s],
+                        alpha=1,
+                        linewidth=1.2,
+                        label=f'XX - {int(freqs[ind])} MHz'
+                    )
+                dy = np.log10(np.abs(uvd.get_data((a,a,'yy'))))
+                for s,ind in enumerate(slice_freq_inds):
+                    dslice = dy[:,ind]
+                    (py,) = ax.plot(
+                        lsts,
+                        dslice,
+                        color=colorsy[s],
+                        alpha=1,
+                        linewidth=1.2,
+                        label=f'YY - {int(freqs[ind])} MHz'
+                    )
+                if yrange_set is False:
+                    xdiff = np.abs(np.subtract(np.nanmax(dx),np.nanmin(dx)))
+                    ydiff = np.abs(np.subtract(np.nanmax(dy),np.nanmin(dy)))
+                    yrange = np.nanmax([xdiff,ydiff])
+                    if math.isinf(yrange) or math.isnan(yrange):
+                        yrange = 10
+                    else:
+                        yrange_set = True
+                ymin = np.nanmin([np.nanmin(dx),np.nanmin(dy)])
+                if math.isinf(ymin):
+                    ymin=0
+                if math.isnan(ymin):
+                    ymin=0
+                ylim = (ymin, ymin + yrange)
+                if yrange > 2*np.abs(np.subtract(np.nanmax(dx),np.nanmin(dx))) or yrange > 2*np.abs(np.subtract(np.nanmax(dy),np.nanmin(dy))):
+                    xdiff = np.abs(np.subtract(np.nanmax(dx),np.nanmin(dx)))
+                    ydiff = np.abs(np.subtract(np.nanmax(dy),np.nanmin(dy)))
+                    yrange_temp = np.nanmax([xdiff,ydiff])
+                    ylim = (ymin, ymin + yrange_temp)
+                    ax.tick_params(color='red', labelcolor='red')
+                    for spine in ax.spines.values():
+                        spine.set_edgecolor('red')
+                xlim = (lsts[0],lsts[-1])
+            elif logscale is True:
                 (px,) = ax.plot(
                     freqs,
                     10 * np.log10(np.abs(uvd.get_data((a, a, "xx"))[t_index])),
@@ -146,6 +212,8 @@ def plot_autos(
                     alpha=0.75,
                     linewidth=1,
                 )
+            ax.set_xlim(xlim)
+            ax.set_ylim(ylim)
             ax.grid(False, which="both")
             abb = status_abbreviations[status]
             if a in wrongAnts:
@@ -155,10 +223,16 @@ def plot_autos(
                     f"{a} ({abb})", fontsize=10, backgroundcolor=status_colors[status]
                 )
             if k == 0:
-                ax.legend([px, py], ["NN", "EE"])
+                if time_slice:
+                    ax.legend(loc='upper left',bbox_to_anchor=(0, 1.7),ncol=2)
+                else:
+                    ax.legend([px, py], ["NN", "EE"])
             if i == len(inclNodes) - 1:
                 [t.set_fontsize(10) for t in ax.get_xticklabels()]
-                ax.set_xlabel("freq (MHz)", fontsize=10)
+                if time_slice is True:
+                    ax.set_xlabel("LST (hours)", fontsize=10)
+                else:
+                    ax.set_xlabel("freq (MHz)", fontsize=10)
             else:
                 ax.set_xticklabels([])
             if j != 0:
@@ -196,6 +270,7 @@ def plot_wfs(
     vmin=None,
     vmax=None,
     wrongAnts=[],
+    plot_nodes='all',
     logscale=True,
     uvd_diff=None,
     metric=None,
@@ -294,12 +369,17 @@ def plot_wfs(
         vmax = vmaxAuto
 
     for node in nodes:
+        if plot_nodes is not 'all' and node not in plot_nodes:
+            continue
         n = len(nodes[node]["ants"])
         if n > maxants:
             maxants = n
 
     Nside = maxants
-    Yside = len(inclNodes)
+    if plot_nodes == 'all':
+        Yside = len(inclNodes)
+    else:
+        Yside = len(plot_nodes)
 
     t_index = 0
     jd = times[t_index]
@@ -310,8 +390,13 @@ def plot_wfs(
     fig.suptitle(f"{pol} Polarization", fontsize=14, y=1 + ptitle)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
     fig.subplots_adjust(left=0, bottom=0.1, right=0.9, top=1, wspace=0.1, hspace=0.3)
-
-    for i, n in enumerate(inclNodes):
+    i = -1
+    for _, n in enumerate(inclNodes):
+        if plot_nodes is not 'all':
+            inclNodes = plot_nodes
+            if n not in plot_nodes:
+                continue
+        i += 1
         ants = nodes[n]["ants"]
         j = 0
         for _, a in enumerate(sorted_ants):
@@ -1570,7 +1655,7 @@ def plot_single_matrix(
     if nantsTotal != len(data):
         print("##### WARNING: NUMBER OF ANTENNAS DOES NOT MATCH MATRIX SIZE #####")
     if linlog is True and dataRef is not None:
-        linthresh = np.percentile(dataRef, 99)
+        linthresh = np.nanpercentile(dataRef, 99)
         norm = colors.SymLogNorm(
             linthresh=linthresh, linscale=1, vmin=-linthresh, vmax=1.0
         )
@@ -1820,6 +1905,7 @@ def makeCorrMatrices(
     nanDiffs=False,
     pols=["EE", "NN", "EN", "NE"],
     interleave="even_odd",
+    plot_nodes='all',
     printStatusUpdates=False,
 ):
     """
@@ -1879,7 +1965,22 @@ def makeCorrMatrices(
             nfreqs = freq_inds[1] - freq_inds[0]
             print(f"{nfreqs} frequency bins")
         print(f"{len(use_files_sum)} times")
-
+    if plot_nodes is not 'all':
+        if sm is None:
+            uv = UVData()
+            uv.read(HHfiles[0])
+        else:
+            uv = sm
+        nodeDict, _, inclNodes = utils.generate_nodeDict(uv)
+        plot_ants = []
+        for node in nodeDict:
+            if node in plot_nodes:
+                for ant in nodeDict[node]['ants']:
+                    plot_ants.append(ant)
+        if use_ants == 'all':
+            use_ants = plot_ants
+        else:
+            use_ants = [a for a in use_ants if a in plot_ants]
     if use_ants == "all":
         if sm is not None:
             use_ants = sm.get_ants()
@@ -1894,12 +1995,16 @@ def makeCorrMatrices(
         if printStatusUpdates:
             print("Reading sum files")
         sm.read(use_files_sum, antenna_nums=use_ants)
+    else:
+        sm.select(antenna_nums=use_ants)
 
     if df is None:
         df = UVData()
         if printStatusUpdates:
             print("Reading diff files")
         df.read(use_files_diff, antenna_nums=use_ants)
+    else:
+        df.select(antenna_nums=use_ants)
 
     # Calculate real and imaginary correlation matrices
     if printStatusUpdates:
@@ -1961,6 +2066,171 @@ def makeCorrMatrices(
     return sm, df, corr_real, corr_imag, perBlSummary
 
 
+def plotPerNodeSpectraAndHists(
+    sm,
+    df,
+    perNodeSummary="auto",
+    interleave="even_odd",
+    interval=1,
+    savefig=False,
+    outfig="",
+    freq_range=[132, 148],
+    pol="allpols",
+    percentage=10,
+    plot_nodes='all',
+    avg="mean",
+    printStatusUpdates=False,
+):
+    """
+    sm: UVData
+        Object containing sum visibilities.
+    df: UVData
+        Object containing diff visibilities.
+    perBlSummary: Dict or 'auto'
+        Summary of correlation metric data - if set to auto, it will be calculated based on the provided data objects.
+    interleave: String
+        Can be 'even_odd' (default), which sets the standard even odd interleave, or 'ns', which will result in an interleave every n seconds, where n is set by the 'interval' parameter.
+    interval: Int
+        Parameter to set the interleave interval if interleave = 'ns'. Units are number of integrations.
+    savefig: Boolean
+        Option to save out the figure.
+    outfig: String
+        Full path to write out the figure if savefig is True.
+    freq_range: List
+        Frequency range to use points from in the histogram.
+    pol: String
+        Polarization to use - can be any polarization key that exists in perBlSummary.
+    percentage: Int
+        Random percentage of data point to actually plot - if set to 100, matplotlib can take multiple hours to render. Recommended value is in the range of 5 to 15 percent.
+    avg: String
+        Sets the time averaging of the data. Can be 'mean', 'median', or None to not do any time averaging.
+    printStatusUpdates: Boolean
+        Option to print what step it's on to get regular status updates as function is running. Default is False.
+
+    Returns:
+    --------
+    perBlSummary: Dict
+        Dictionary of correlation metric values.
+    """
+    from matplotlib.lines import Line2D
+
+    if printStatusUpdates:
+        print("Calculating Arrays")
+    c = np.asarray(perNodeSummary[pol][plot_nodes[0]]["all"])
+    c_re = np.reshape(c, (np.shape(c)[0], np.shape(c)[1] // 1536, 1536))
+    c_avg = np.nanmean(c_re, axis=(0, 1))
+
+    freqs = sm.freq_array[0] * 1e-6
+    freqs_all = np.tile(freqs, np.shape(c)[0] * int(np.shape(c)[1] / 1536))
+    c_all = np.asarray(c).flatten()
+    # Take a random subset of the data - with the full set of data points, matplotlib will likely fail to render.
+    c_all, inds = utils.getRandPercentage(c_all, percentage)
+    freqs_all = [freqs_all[int(i)] for i in inds]
+
+    c_node = {
+        n: {'base': [], 'full': [], 'freqs': [], 'hist_vals': []} 
+        for n in plot_nodes
+        }
+    for node in plot_nodes:
+        c_node[node]['full'] = np.asarray(perNodeSummary[pol][node]["intranode"])
+        c_node[node]['freqs'] = np.tile(freqs, np.shape(c_node[node]['full'])[0] * int(np.shape(c)[1] / 1536))
+        c_node[node]['base'] = np.asarray(c_node[node]['full']).flatten()
+        c_node[node]['base'], inds = utils.getRandPercentage(c_node[node]['base'], percentage)
+        c_node[node]['freqs'] = [c_node[node]['freqs'][int(i)] for i in inds]
+
+    freq_min_ind = np.argmin(np.abs(np.subtract(freqs, freq_range[0])))
+    freq_max_ind = np.argmin(np.abs(np.subtract(freqs, freq_range[1])))
+
+    for node in plot_nodes:
+        c_node[node]['hist_vals'] = c_node[node]['full'][:, freq_min_ind:freq_max_ind].flatten()
+
+    if printStatusUpdates:
+        print("Plotting")
+
+    fig, axes = plt.subplots(2, 2, figsize=(16, 16))
+    colors = ['tab:blue', 'tab:red', 'tab:orange', 'tab:green', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan', 'blue', 'indigo', 'magenta', 'salmon', 'lawngreen', 'peachpuff', 'powderblue', 'darkseagreen', 'gold', 'teal', 'darkred']
+
+    legend_elements = [
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            label=node,
+            markerfacecolor="b",
+            color=colors[i],
+            alpha=1,
+        )
+        for i,node in enumerate(plot_nodes)]
+
+    for i,node in enumerate(plot_nodes):
+        axes[0][0].scatter(
+            c_node[node]['freqs'], np.real(c_node[node]['base']), s=1.5, alpha=0.2, color=colors[i], label=node)
+
+    axes[0][0].scatter(freqs, np.real(c_avg), s=1, color="k")
+    axes[0][0].legend(handles=legend_elements, fontsize=12)
+    axes[0][0].set_ylim(-1, 1)
+    if interleave == "even_odd":
+        axes[0][0].set_ylabel("Re(even x odd*)")
+    else:
+        axes[0][0].set_ylabel(r"Re(T$_n$ x T$_{(n+}$" + str(interval) + r"$_)$")
+    axes[0][0].set_xlabel("Frequency (MHz)")
+    axes[0][0].axhline(0, color="r", linewidth=1)
+    axes[0][0].axvline(freq_range[0], color="g")
+    axes[0][0].axvline(freq_range[1], color="g")
+    axes[0][0].set_title("Real Spectra")
+
+    for i,node in enumerate(plot_nodes):
+        axes[0][1].scatter(
+            c_node[node]['freqs'], np.imag(c_node[node]['base']), s=1.5, alpha=0.2, color=colors[i], label=node)
+
+    axes[0][1].scatter(freqs, np.imag(c_avg), s=1, color="k")
+    axes[0][1].set_ylim(-1, 1)
+    if interleave == "even_odd":
+        axes[0][1].set_ylabel("Im(even x odd*)")
+    else:
+        axes[0][1].set_ylabel(r"Im(T$_n$ x T$_{(n+}$" + str(interval) + r"$_)$")
+    axes[0][1].set_xlabel("Frequency (MHz)")
+    axes[0][1].axhline(0, color="r", linewidth=1)
+    axes[0][1].axvline(freq_range[0], color="g")
+    axes[0][1].axvline(freq_range[1], color="g")
+    axes[0][1].set_title("Imag Spectra")
+
+    bins = np.linspace(-1.05, 1.05, 44)
+
+    ####### Connectivity Histograms ######
+    for i, node in enumerate(plot_nodes):
+        axes[1][0].hist(
+            np.real(c_node[node]['hist_vals']),
+            log=True,
+            bins=bins,
+            edgecolor=colors[i],
+            fill=False,
+            label=node,
+            linewidth=2,
+            density=True,
+        )
+        axes[1][1].hist(
+            np.imag(c_node[node]['hist_vals']),
+            log=True,
+            bins=bins,
+            edgecolor=colors[i],
+            fill=False,
+            label=node,
+            linewidth=2,
+            density=True,
+        )
+
+    axes[1][0].set_xlim(-1, 1)
+    axes[1][0].set_ylim(10e-4, 10e0)
+    axes[1][0].set_title("Real Histogram")
+
+    axes[1][1].set_xlim(-1, 1)
+    axes[1][1].set_ylim(10e-4, 10e0)
+    axes[1][1].set_title("Imag Histogram")
+    axes[1][0].legend()
+
+    return perNodeSummary
+
 def plotCorrSpectraAndHists(
     sm,
     df,
@@ -1972,6 +2242,7 @@ def plotCorrSpectraAndHists(
     freq_range=[132, 148],
     pol="allpols",
     percentage=10,
+    plot_nodes='all',
     avg="mean",
     printStatusUpdates=False,
 ):
@@ -2318,6 +2589,7 @@ def plotSmithChartByNode(
     None
     """
     from hera_mc import cm_hookup
+    import math
 
     if pols == ["EE"]:
         antpols = ["E"]
@@ -2377,7 +2649,10 @@ def plotSmithChartByNode(
                     r = np.log10(r) - min10
                     ax = fig.add_subplot(gs[i, j], polar=True)
                     im = ax.scatter(theta, r, c=freqs, cmap="viridis", s=20)
-                    ax.set_rlim(0, np.percentile(r, 99.5))
+                    if math.isnan(np.nanpercentile(r, 99.5)):
+                        ax.set_rlim(0, 1)
+                    else:
+                        ax.set_rlim(0, np.nanpercentile(r, 99.5))
                     ax.set_rticks([])
                     if a2 == ants[-1]:
                         fig.colorbar(im)
@@ -2484,7 +2759,7 @@ def plotSmithChartByNode(
         plt.close("all")
 
 
-def plot_wfs_delay(uvd, _data_sq, pol):
+def plot_wfs_delay(uvd, _data_sq, pol,plot_nodes='all'):
     """
     Waterfall diagram for autocorrelation delay spectrum.
 
@@ -2517,12 +2792,17 @@ def plot_wfs_delay(uvd, _data_sq, pol):
     maxants = 0
     polnames = ["nn", "ee", "ne", "en"]
     for node in nodes:
+        if plot_nodes is not 'all' and node not in plot_nodes:
+            continue
         n = len(nodes[node]["ants"])
         if n > maxants:
             maxants = n
 
     Nside = maxants
-    Yside = len(inclNodes)
+    if plot_nodes == 'all':
+        Yside = len(inclNodes)
+    else:
+        Yside = len(plot_nodes)
 
     t_index = 0
     jd = times[t_index]
@@ -2548,6 +2828,10 @@ def plot_wfs_delay(uvd, _data_sq, pol):
     yticks = [int(i) for i in np.linspace(0, len(lsts) - 1, 6)]
     yticklabels = [np.around(lsts[ytick], 1) for ytick in yticks]
     for i, n in enumerate(inclNodes):
+        if plot_nodes is not 'all':
+            inclNodes = plot_nodes
+            if n not in plot_nodes:
+                continue
         ants = nodes[n]["ants"]
         j = 0
         for _, a in enumerate(sorted_ants):

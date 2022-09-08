@@ -607,6 +607,8 @@ def calc_corr_metric(
     nanDiffs=False,
     interleave="even_odd",
     divideByAbs=True,
+    plot_nodes='all',
+    perNodeSummary=False,
     crossPolCheck=False,
 ):
     """
@@ -671,6 +673,7 @@ def calc_corr_metric(
         }
     polInds = {p: [0, 0] for p in pols}
     corr = np.zeros((len(useAnts), len(useAnts)))
+    nodeDict, antDict, inclNodes = generate_nodeDict(uvd_sum)
 
     perBlSummary = {
         pol: {
@@ -685,6 +688,18 @@ def calc_corr_metric(
         }
         for pol in np.append(pols, "allpols")
     }
+    if perNodeSummary:
+        perNodeSummary = {
+            pol: {
+                node: {
+                    'intranode': [],
+                    'all': []
+                }
+                for node in inclNodes
+            }
+            for pol in np.append(pols, "allpols")
+        }
+    print(perNodeSummary['EE'].keys())
     x = cm_hookup.get_hookup("default")
     for i, a1 in enumerate(useAnts):
         for j, a2 in enumerate(useAnts):
@@ -807,6 +822,8 @@ def calc_corr_metric(
                             np.nanmean(product, axis=0)
                         )
                         perBlSummary["allpols"]["intranode_bls"].append((a1, a2))
+                    if perNodeSummary:
+                        perNodeSummary[pol][n1]['intranode'].append(np.nanmean(product, axis=0))
                 else:
                     perBlSummary[pol]["internode_vals"].append(
                         np.nanmean(product, axis=0)
@@ -816,9 +833,15 @@ def calc_corr_metric(
                         np.nanmean(product, axis=0)
                     )
                     perBlSummary["allpols"]["internode_bls"].append((a1, a2))
+                    if perNodeSummary:
+                        perNodeSummary[pol][n1]['all'].append(np.nanmean(product, axis=0))
+                        perNodeSummary[pol][n2]['all'].append(np.nanmean(product, axis=0))
         for key in polInds.keys():
             polInds[key][1] = 0
-    return corr, perBlSummary, perPolDict
+    if perNodeSummary:
+        return corr, perBlSummary, perPolDict, perNodeSummary
+    else:
+        return corr, perBlSummary, perPolDict
 
 
 def getRandPercentage(data, percentage):
