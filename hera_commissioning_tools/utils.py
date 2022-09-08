@@ -699,7 +699,6 @@ def calc_corr_metric(
             }
             for pol in np.append(pols, "allpols")
         }
-    print(perNodeSummary['EE'].keys())
     x = cm_hookup.get_hookup("default")
     for i, a1 in enumerate(useAnts):
         for j, a2 in enumerate(useAnts):

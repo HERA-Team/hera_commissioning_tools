@@ -1996,7 +1996,7 @@ def makeCorrMatrices(
             print("Reading sum files")
         sm.read(use_files_sum, antenna_nums=use_ants)
     else:
-        sm.select(antenna_nums=use_ants)
+        sm = sm.select(antenna_nums=use_ants,inplace=False)
 
     if df is None:
         df = UVData()
@@ -2004,7 +2004,7 @@ def makeCorrMatrices(
             print("Reading diff files")
         df.read(use_files_diff, antenna_nums=use_ants)
     else:
-        df.select(antenna_nums=use_ants)
+        df = df.select(antenna_nums=use_ants,inplace=False)
 
     # Calculate real and imaginary correlation matrices
     if printStatusUpdates:
