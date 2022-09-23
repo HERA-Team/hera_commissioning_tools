@@ -326,7 +326,7 @@ def plot_wfs(
     from hera_mc import cm_active
 
     nodes, _, inclNodes = utils.generate_nodeDict(uvd)
-    sorted_ants, _, _ = utils.sort_antennas(uvd)
+    sorted_ants, sortedSnapLocs, sortedSnapInputs = utils.sort_antennas(uvd)
     freqs = (uvd.freq_array[0]) * 10 ** (-6)
     times = uvd.time_array
     lsts = uvd.lst_array * 3.819719
@@ -396,6 +396,7 @@ def plot_wfs(
     fig.subplots_adjust(left=0, bottom=0.1, right=0.9, top=1, wspace=0.1, hspace=0.3)
     i = -1
     for _, n in enumerate(inclNodes):
+        slots_filled = []
         if plot_nodes is not 'all':
             inclNodes = plot_nodes
             if n not in plot_nodes:
@@ -407,8 +408,10 @@ def plot_wfs(
             if a not in ants:
                 continue
             status = utils.get_ant_status(h, a)
+            slot = utils.get_slot_number(uvd, a, sorted_ants, sortedSnapLocs, sortedSnapInputs)
+            slots_filled.append(slot)
             abb = status_abbreviations[status]
-            ax = axes[i, j]
+            ax = axes[i, slot]
             if metric is None:
                 if logscale is True:
                     dat = np.log10(np.abs(uvd.get_data(a, a, pol)))
@@ -498,8 +501,9 @@ def plot_wfs(
                     ax.spines[axis].set_linewidth(2)
                     ax.spines[axis].set_color("red")
             j += 1
-        for k in range(j, maxants):
-            axes[i, k].axis("off")
+        for k in range(0, 12):
+            if k not in slots_filled:
+                axes[i, k].axis("off")
         pos = ax.get_position()
         cbar_ax = fig.add_axes([0.91, pos.y0, 0.01, pos.height])
         cbar = fig.colorbar(im, cax=cbar_ax)
