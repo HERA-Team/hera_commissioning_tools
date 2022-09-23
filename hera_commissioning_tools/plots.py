@@ -73,6 +73,7 @@ def plot_autos(
     from astropy.time import Time
     from hera_mc import cm_active
     import math
+    from matplotlib import pyplot as plt
 
     nodes, antDict, inclNodes = utils.generate_nodeDict(uvd)
     sorted_ants, sortedSnapLocs, sortedSnapInputs = utils.sort_antennas(uvd)
@@ -140,6 +141,7 @@ def plot_autos(
                 dx = np.log10(np.abs(uvd.get_data((a,a,'xx'))))
                 for s,ind in enumerate(slice_freq_inds):
                     dslice = dx[:,ind]
+                    dslice = np.subtract(dslice,np.nanmean(dslice))
                     (px,) = ax.plot(
                         lsts,
                         dslice,
@@ -151,6 +153,7 @@ def plot_autos(
                 dy = np.log10(np.abs(uvd.get_data((a,a,'yy'))))
                 for s,ind in enumerate(slice_freq_inds):
                     dslice = dy[:,ind]
+                    dslice = np.subtract(dslice,np.nanmean(dslice))
                     (py,) = ax.plot(
                         lsts,
                         dslice,
@@ -159,28 +162,29 @@ def plot_autos(
                         linewidth=1.2,
                         label=f'YY - {int(freqs[ind])} MHz'
                     )
-                if yrange_set is False:
-                    xdiff = np.abs(np.subtract(np.nanmax(dx),np.nanmin(dx)))
-                    ydiff = np.abs(np.subtract(np.nanmax(dy),np.nanmin(dy)))
-                    yrange = np.nanmax([xdiff,ydiff])
-                    if math.isinf(yrange) or math.isnan(yrange):
-                        yrange = 10
-                    else:
-                        yrange_set = True
-                ymin = np.nanmin([np.nanmin(dx),np.nanmin(dy)])
-                if math.isinf(ymin):
-                    ymin=0
-                if math.isnan(ymin):
-                    ymin=0
-                ylim = (ymin, ymin + yrange)
-                if yrange > 2*np.abs(np.subtract(np.nanmax(dx),np.nanmin(dx))) or yrange > 2*np.abs(np.subtract(np.nanmax(dy),np.nanmin(dy))):
-                    xdiff = np.abs(np.subtract(np.nanmax(dx),np.nanmin(dx)))
-                    ydiff = np.abs(np.subtract(np.nanmax(dy),np.nanmin(dy)))
-                    yrange_temp = np.nanmax([xdiff,ydiff])
-                    ylim = (ymin, ymin + yrange_temp)
-                    ax.tick_params(color='red', labelcolor='red')
-                    for spine in ax.spines.values():
-                        spine.set_edgecolor('red')
+                if ylim is None:
+                    if yrange_set is False:
+                        xdiff = np.abs(np.subtract(np.nanmax(dx),np.nanmin(dx)))
+                        ydiff = np.abs(np.subtract(np.nanmax(dy),np.nanmin(dy)))
+                        yrange = np.nanmax([xdiff,ydiff])
+                        if math.isinf(yrange) or math.isnan(yrange):
+                            yrange = 10
+                        else:
+                            yrange_set = True
+                    ymin = -yrange/2
+                    if math.isinf(ymin):
+                        ymin=0
+                    if math.isnan(ymin):
+                        ymin=0
+                    ylim = (ymin, ymin + yrange)
+                    if yrange > 2*np.abs(np.subtract(np.nanmax(dx),np.nanmin(dx))) or yrange > 2*np.abs(np.subtract(np.nanmax(dy),np.nanmin(dy))):
+                        xdiff = np.abs(np.subtract(np.nanmax(dx),np.nanmin(dx)))
+                        ydiff = np.abs(np.subtract(np.nanmax(dy),np.nanmin(dy)))
+                        yrange_temp = np.nanmax([xdiff,ydiff])
+                        ylim = (ymin, ymin + yrange_temp)
+                        ax.tick_params(color='red', labelcolor='red')
+                        for spine in ax.spines.values():
+                            spine.set_edgecolor('red')
                 xlim = (lsts[0],lsts[-1])
             elif logscale is True:
                 (px,) = ax.plot(
@@ -253,7 +257,6 @@ def plot_autos(
         axes[i, maxants - 1].annotate(
             f"Node {n}", (1.1, 0.3), xycoords="axes fraction", rotation=270
         )
-
     if savefig is True:
         plt.savefig(title)
         plt.show()
