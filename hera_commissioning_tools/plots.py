@@ -120,6 +120,7 @@ def plot_autos(
     i=-1
     yrange_set = False
     for _, n in enumerate(inclNodes):
+        slots_filled = []
         if plot_nodes is not 'all':
             inclNodes = plot_nodes
             if n not in plot_nodes:
@@ -131,7 +132,9 @@ def plot_autos(
             if a not in ants:
                 continue
             status = utils.get_ant_status(h, a)
-            ax = axes[i, j]
+            slot = utils.get_slot_number(uvd, a, sorted_ants, sortedSnapLocs, sortedSnapInputs)
+            slots_filled.append(slot)
+            ax = axes[i, slot]
             if time_slice is True:
                 colors = ['r','b']
                 lsts = uvd.lst_array * 3.819719
@@ -248,8 +251,9 @@ def plot_autos(
                     ax.patch.set_alpha(0.2)
             j += 1
             k += 1
-        for k in range(j, maxants):
-            axes[i, k].axis("off")
+        for k in range(0, 12):
+            if k not in slots_filled:
+                axes[i, k].axis("off")
         axes[i, maxants - 1].annotate(
             f"Node {n}", (1.1, 0.3), xycoords="axes fraction", rotation=270
         )
@@ -1957,7 +1961,10 @@ def makeCorrMatrices(
         )
     if HHfiles is not None:
         nHH = len(HHfiles)
-        use_files_sum = HHfiles[nHH // 2 - nfilesUse // 2 : nHH // 2 + nfilesUse // 2]
+        if nHH <= nfilesUse:
+            use_files_sum = HHfiles
+        else:
+            use_files_sum = HHfiles[nHH // 2 - nfilesUse // 2 : nHH // 2 + nfilesUse // 2]
         use_files_diff = [file.split("sum")[0] + "diff.uvh5" for file in use_files_sum]
         if len(freq_inds) == 0:
             print("All frequency bins")

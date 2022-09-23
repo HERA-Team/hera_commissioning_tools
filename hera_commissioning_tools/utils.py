@@ -259,6 +259,17 @@ def generate_nodeDict(uv, pols=["E"]):
     inclNodes = np.unique(inclNodes)
     return nodes, antDict, inclNodes
 
+def get_slot_number(uv, ant, sortedAntennas, sortedSnapLocs, sortedSnapInputs):
+    ind = np.argmin(abs(np.subtract(sortedAntennas,ant)))
+    loc = sortedSnapLocs[ind]
+    inp = sortedSnapInputs[ind]
+    slot = loc * 3
+    if inp == 6:
+        slot += 1
+    elif inp == 10:
+        slot += 2
+    return slot
+
 
 def sort_antennas(uv, use_ants="all", pols=["E"]):
     """
