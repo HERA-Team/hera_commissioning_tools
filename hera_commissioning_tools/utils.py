@@ -620,6 +620,7 @@ def calc_corr_metric(
     divideByAbs=True,
     plot_nodes='all',
     perNodeSummary=False,
+    printStatusUpdates=True,
     crossPolCheck=False,
 ):
     """
@@ -661,6 +662,8 @@ def calc_corr_metric(
     """
     from hera_mc import cm_hookup
 
+    if printStatusUpdates:
+        print('Getting metadata')
     if type(pols) == str:
         pols = [pols]
     if use_ants == "all":
@@ -711,7 +714,11 @@ def calc_corr_metric(
             for pol in np.append(pols, "allpols")
         }
     x = cm_hookup.get_hookup("default")
+    if printStatusUpdates:
+        print('Calculating')
     for i, a1 in enumerate(useAnts):
+        if i%10 == 0 and printStatusUpdates:
+            print(f'Calculating for antenna {i}')
         for j, a2 in enumerate(useAnts):
             if len(antpols) > 1:
                 ant1 = int(a1[:-1])
@@ -875,7 +882,8 @@ def getRandPercentage(data, percentage):
     """
     k = len(data) * percentage // 100
     indices = np.random.sample(int(k)) * len(data)
-    data = [data[int(i)] for i in indices]
+    indices = [int(i) for i in indices]
+    data = [data[i] for i in indices]
     return data, indices
 
 

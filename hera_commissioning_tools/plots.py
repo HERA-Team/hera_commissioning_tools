@@ -92,7 +92,7 @@ def plot_autos(
     else:
         Yside = len(plot_nodes)
 
-    t_index = 0
+    t_index = len(np.unique(times))//2
     jd = times[t_index]
     utc = Time(jd, format="jd").datetime
 
@@ -139,12 +139,14 @@ def plot_autos(
                 colors = ['r','b']
                 lsts = uvd.lst_array * 3.819719
                 inds = np.unique(lsts, return_index=True)[1]
-                lsts = [lsts[ind] for ind in sorted(inds)]
+                lsts = np.asarray([lsts[ind] for ind in sorted(inds)])
+#                 if a == sorted_ants[0]:
+#                     print(lsts)
+#                     print(len(lsts))
                 dx = np.log10(np.abs(uvd.get_data((a,a,'xx'))))
                 for s,ind in enumerate(slice_freq_inds):
                     dslice = dx[:,ind]
                     (px,) = ax.plot(
-                        lsts,
                         dslice,
                         color=colorsx[s],
                         alpha=1,
@@ -155,7 +157,6 @@ def plot_autos(
                 for s,ind in enumerate(slice_freq_inds):
                     dslice = dy[:,ind]
                     (py,) = ax.plot(
-                        lsts,
                         dslice,
                         color=colorsy[s],
                         alpha=1,
@@ -170,21 +171,22 @@ def plot_autos(
                         yrange = 10
                     else:
                         yrange_set = True
-                ymin = np.nanmin([np.nanmin(dx),np.nanmin(dy)])
-                if math.isinf(ymin):
-                    ymin=0
-                if math.isnan(ymin):
-                    ymin=0
-                ylim = (ymin, ymin + yrange)
-                if yrange > 2*np.abs(np.subtract(np.nanmax(dx),np.nanmin(dx))) or yrange > 2*np.abs(np.subtract(np.nanmax(dy),np.nanmin(dy))):
-                    xdiff = np.abs(np.subtract(np.nanmax(dx),np.nanmin(dx)))
-                    ydiff = np.abs(np.subtract(np.nanmax(dy),np.nanmin(dy)))
-                    yrange_temp = np.nanmax([xdiff,ydiff])
-                    ylim = (ymin, ymin + yrange_temp)
-                    ax.tick_params(color='red', labelcolor='red')
-                    for spine in ax.spines.values():
-                        spine.set_edgecolor('red')
-                xlim = (lsts[0],lsts[-1])
+                if ylim is None:
+                    ymin = np.nanmin([np.nanmin(dx),np.nanmin(dy)])
+                    if math.isinf(ymin):
+                        ymin=0
+                    if math.isnan(ymin):
+                        ymin=0
+                    ylim = (ymin, ymin + yrange)
+                    if yrange > 3*np.abs(np.subtract(np.nanmax(dx),np.nanmin(dx))) or yrange > 3*np.abs(np.subtract(np.nanmax(dy),np.nanmin(dy))):
+                        xdiff = np.abs(np.subtract(np.nanmax(dx),np.nanmin(dx)))
+                        ydiff = np.abs(np.subtract(np.nanmax(dy),np.nanmin(dy)))
+                        yrange_temp = np.nanmax([xdiff,ydiff])
+                        ylim = (ymin, ymin + yrange_temp)
+                        ax.tick_params(color='red', labelcolor='red')
+                        for spine in ax.spines.values():
+                            spine.set_edgecolor('red')
+    #                 xlim = (lsts[0],lsts[-1])
             elif logscale is True:
                 (px,) = ax.plot(
                     freqs,
@@ -215,7 +217,13 @@ def plot_autos(
                     alpha=0.75,
                     linewidth=1,
                 )
-            ax.set_xlim(xlim)
+            if time_slice is False:
+                ax.set_xlim(xlim)
+            else:
+                xticks = np.asarray([int(i) for i in np.linspace(0, len(lsts) - 1, 3)])
+                xticklabels = [int(l) for l in lsts[xticks]]
+                ax.set_xticks(xticks)
+                ax.set_xticklabels(xticklabels)
             ax.set_ylim(ylim)
             ax.grid(False, which="both")
             abb = status_abbreviations[status]
@@ -278,7 +286,7 @@ def plot_wfs(
     logscale=True,
     uvd_diff=None,
     metric=None,
-    title="",
+    outfig="",
     dtype="sky",
     _data_cleaned_sq="auto",
 ):
@@ -311,7 +319,7 @@ def plot_wfs(
     metric: String or None
         When metric is None the standard sum data is plot. Set metric to 'even' or 'odd' to plot those values instead.
         Providing uvd_diff is required when this parameter is used.
-    title: String
+    outfig: String
         Path to write out the figure if savefig is True.
     dtype: String or None
         Can be 'sky', 'load', 'noise', or None. If set to 'load' or 'noise' the vmin and vmax parameters will be
@@ -509,7 +517,7 @@ def plot_wfs(
         cbar = fig.colorbar(im, cax=cbar_ax)
         cbar.set_label(f"Node {n}", rotation=270, labelpad=15)
     if savefig is True:
-        plt.savefig(title, bbox_inches="tight", dpi=100)
+        plt.savefig(outfig, bbox_inches="tight", dpi=100)
     plt.show()
     plt.close()
 
@@ -524,6 +532,8 @@ def waterfall_lineplot(
     size="large",
     savefig=False,
     outfig="",
+    sliceind=None,
+    ylim=None,
     mean_sub=False,
 ):
     """
@@ -643,9 +653,15 @@ def waterfall_lineplot(
             line.set_yticks([])
         line.set_xlim(freq[0], freq[-1])
         line.set_xticks([])
+        if ylim is not None:
+            line.set_ylim(ylim)
 
         line2 = plt.subplot(gs[it + 4])
-        dat = np.abs(dat[len(dat) // 2, :])
+        if sliceind == None:
+            dat = np.abs(dat[len(dat) // 2, :])
+        else:
+            dat = np.abs(dat[sliceind,:])
+            waterfall.axhline(sliceind,color='r')
         plt.plot(freq, dat)
         line2.set_yscale("log")
         line2.set_xlabel("Frequency (MHz)")
@@ -654,6 +670,8 @@ def waterfall_lineplot(
         else:
             line2.set_yticks([])
         line2.set_xlim(freq[0], freq[-1])
+        if ylim is not None:
+            line2.set_ylim(ylim)
 
         plt.setp(waterfall.get_xticklabels(), visible=False)
         plt.subplots_adjust(hspace=0.0)
@@ -1757,8 +1775,10 @@ def plot_single_matrix(
     axs.set_title(title)
     if savefig is True:
         plt.savefig(outfig, bbox_inches="tight")
-    plt.show()
-    plt.close()
+        plt.close()
+    else:
+        plt.show()
+        plt.close()
 
 
 def plotCorrMatrices(
@@ -1914,6 +1934,8 @@ def makeCorrMatrices(
     pols=["EE", "NN", "EN", "NE"],
     interleave="even_odd",
     plot_nodes='all',
+    savefig=False,
+    outfig="",
     printStatusUpdates=False,
 ):
     """
@@ -1972,6 +1994,7 @@ def makeCorrMatrices(
         use_files_diff = [file.split("sum")[0] + "diff.uvh5" for file in use_files_sum]
         if len(freq_inds) == 0:
             print("All frequency bins")
+            nfreqs = 'all'
         else:
             nfreqs = freq_inds[1] - freq_inds[0]
             print(f"{nfreqs} frequency bins")
@@ -2045,7 +2068,7 @@ def makeCorrMatrices(
     if printStatusUpdates:
         print("Plotting real matrix")
     plot_single_matrix(
-        sm, corr_real, logScale=True, vmin=0.01, title="|Real|", pols=pols
+        sm, corr_real, logScale=True, vmin=0.01, title="|Real|", pols=pols, savefig=savefig, outfig=f'{outfig}_{nfilesUse}files_{nfreqs}freqs_real.png',
     )
     # Plot matrix of imaginary values
     if printStatusUpdates:
@@ -2059,6 +2082,8 @@ def makeCorrMatrices(
         cmap="bwr",
         title="Imaginary",
         pols=pols,
+        savefig=savefig,
+        outfig=f'{outfig}_{nfilesUse}files_{nfreqs}freqs_imag.png',
     )
     # Plot matrix of real values on linlog color scale.
     if printStatusUpdates:
@@ -2072,6 +2097,8 @@ def makeCorrMatrices(
         title="Real",
         cmap="bwr",
         pols=pols,
+        savefig=savefig,
+        outfig=f'{outfig}_{nfilesUse}files_{nfreqs}freqs_linlog.png',
     )
 
     return sm, df, corr_real, corr_imag, perBlSummary
@@ -2125,6 +2152,9 @@ def plotPerNodeSpectraAndHists(
     """
     from matplotlib.lines import Line2D
 
+    if plot_nodes == 'all':
+        nodes, antDict, inclNodes = utils.generate_nodeDict(sm)
+        plot_nodes = inclNodes
     if printStatusUpdates:
         print("Calculating Arrays")
     c = np.asarray(perNodeSummary[pol][plot_nodes[0]]["all"])
@@ -2239,6 +2269,9 @@ def plotPerNodeSpectraAndHists(
     axes[1][1].set_ylim(10e-4, 10e0)
     axes[1][1].set_title("Imag Histogram")
     axes[1][0].legend()
+    
+    if savefig:
+        plt.savefig(outfig, bbox_inches="tight")
 
     return perNodeSummary
 
@@ -2255,7 +2288,7 @@ def plotCorrSpectraAndHists(
     percentage=10,
     plot_nodes='all',
     avg="mean",
-    printStatusUpdates=False,
+    printStatusUpdates=True,
 ):
     """
     sm: UVData
