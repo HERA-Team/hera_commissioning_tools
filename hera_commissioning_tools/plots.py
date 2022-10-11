@@ -1938,6 +1938,8 @@ def makeCorrMatrices(
     plot_nodes='all',
     savefig=False,
     outfig="",
+    write_uvh5=False,
+    plotMatrices=True,
     printStatusUpdates=False,
 ):
     """
@@ -2042,6 +2044,10 @@ def makeCorrMatrices(
     else:
         df = df.select(antenna_nums=use_ants,inplace=False)
 
+    if write_uvh5:
+        JD = int(sm.time_array[0])
+        sm.write_uvh5(f'{JD}_{nfilesUse}files_{nfreqs}freqs_sum.uvh5')
+        df.write_uvh5(f'{JD}_{nfilesUse}files_{nfreqs}freqs_diff.uvh5')
     # Calculate real and imaginary correlation matrices
     if printStatusUpdates:
         print("Calculating real matrix components")
@@ -2066,42 +2072,43 @@ def makeCorrMatrices(
         interleave=interleave,
     )
 
-    # Plot matrix of real values
-    if printStatusUpdates:
-        print("Plotting real matrix")
-    plot_single_matrix(
-        sm, corr_real, logScale=True, vmin=0.01, title="|Real|", pols=pols, savefig=savefig, outfig=f'{outfig}_{nfilesUse}files_{nfreqs}freqs_real.png',
-    )
-    # Plot matrix of imaginary values
-    if printStatusUpdates:
-        print("Plotting imaginary matrix")
-    plot_single_matrix(
-        sm,
-        corr_imag,
-        logScale=False,
-        vmin=-0.03,
-        vmax=0.03,
-        cmap="bwr",
-        title="Imaginary",
-        pols=pols,
-        savefig=savefig,
-        outfig=f'{outfig}_{nfilesUse}files_{nfreqs}freqs_imag.png',
-    )
-    # Plot matrix of real values on linlog color scale.
-    if printStatusUpdates:
-        print("Plotting linlog matrix")
-    plot_single_matrix(
-        sm,
-        corr_real,
-        dataRef=corr_imag,
-        linlog=True,
-        vmin=0.01,
-        title="Real",
-        cmap="bwr",
-        pols=pols,
-        savefig=savefig,
-        outfig=f'{outfig}_{nfilesUse}files_{nfreqs}freqs_linlog.png',
-    )
+    if plotMatrices:
+        # Plot matrix of real values
+        if printStatusUpdates:
+            print("Plotting real matrix")
+        plot_single_matrix(
+            sm, corr_real, logScale=True, vmin=0.01, title="|Real|", pols=pols, savefig=savefig, outfig=f'{outfig}_{nfilesUse}files_{nfreqs}freqs_real.png',
+        )
+        # Plot matrix of imaginary values
+        if printStatusUpdates:
+            print("Plotting imaginary matrix")
+        plot_single_matrix(
+            sm,
+            corr_imag,
+            logScale=False,
+            vmin=-0.03,
+            vmax=0.03,
+            cmap="bwr",
+            title="Imaginary",
+            pols=pols,
+            savefig=savefig,
+            outfig=f'{outfig}_{nfilesUse}files_{nfreqs}freqs_imag.png',
+        )
+        # Plot matrix of real values on linlog color scale.
+        if printStatusUpdates:
+            print("Plotting linlog matrix")
+        plot_single_matrix(
+            sm,
+            corr_real,
+            dataRef=corr_imag,
+            linlog=True,
+            vmin=0.01,
+            title="Real",
+            cmap="bwr",
+            pols=pols,
+            savefig=savefig,
+            outfig=f'{outfig}_{nfilesUse}files_{nfreqs}freqs_linlog.png',
+        )
 
     return sm, df, corr_real, corr_imag, perBlSummary
 
