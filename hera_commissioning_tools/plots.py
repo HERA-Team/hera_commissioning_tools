@@ -159,6 +159,7 @@ def plot_autos(
                 for s,ind in enumerate(slice_freq_inds):
                     dslice = dy[:,ind]
                     dslice = np.subtract(dslice,np.nanmean(dslice))
+#                     print(dslice)
                     (py,) = ax.plot(
                         dslice,
                         color=colorsy[s],
@@ -166,22 +167,22 @@ def plot_autos(
                         linewidth=1.2,
                         label=f'YY - {int(freqs[ind])} MHz'
                     )
+                if yrange_set is False:
+                    xdiff = np.abs(np.subtract(np.nanmax(dx),np.nanmin(dx)))
+                    ydiff = np.abs(np.subtract(np.nanmax(dy),np.nanmin(dy)))
+                    yrange = np.nanmax([xdiff,ydiff])
+                    if math.isinf(yrange) or math.isnan(yrange):
+                        yrange = 10
+                    else:
+                        yrange_set = True
                 if ylim is None:
-                    if yrange_set is False:
-                        xdiff = np.abs(np.subtract(np.nanmax(dx),np.nanmin(dx)))
-                        ydiff = np.abs(np.subtract(np.nanmax(dy),np.nanmin(dy)))
-                        yrange = np.nanmax([xdiff,ydiff])
-                        if math.isinf(yrange) or math.isnan(yrange):
-                            yrange = 10
-                        else:
-                            yrange_set = True
-                    ymin = -yrange/2
+                    ymin = np.nanmin([np.nanmin(dx),np.nanmin(dy)])
                     if math.isinf(ymin):
                         ymin=0
                     if math.isnan(ymin):
                         ymin=0
                     ylim = (ymin, ymin + yrange)
-                    if yrange > 2*np.abs(np.subtract(np.nanmax(dx),np.nanmin(dx))) or yrange > 2*np.abs(np.subtract(np.nanmax(dy),np.nanmin(dy))):
+                    if yrange > 3*np.abs(np.subtract(np.nanmax(dx),np.nanmin(dx))) or yrange > 3*np.abs(np.subtract(np.nanmax(dy),np.nanmin(dy))):
                         xdiff = np.abs(np.subtract(np.nanmax(dx),np.nanmin(dx)))
                         ydiff = np.abs(np.subtract(np.nanmax(dy),np.nanmin(dy)))
                         yrange_temp = np.nanmax([xdiff,ydiff])
@@ -189,7 +190,6 @@ def plot_autos(
                         ax.tick_params(color='red', labelcolor='red')
                         for spine in ax.spines.values():
                             spine.set_edgecolor('red')
-#                     xlim = (lsts[0],lsts[-1])
             elif logscale is True:
                 (px,) = ax.plot(
                     freqs,
