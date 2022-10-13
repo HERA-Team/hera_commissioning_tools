@@ -1003,6 +1003,126 @@ def plotVisibilitySpectra(uv, use_ants="all", badAnts=[], pols=["xx", "yy"]):
     fig.subplots_adjust(top=0.94, wspace=0.05)
     plt.show()
     plt.close()
+    
+
+def plotCrossAndAutos(uv,crossVis,lsts,bls,ant1,ant2,plot_type = 'raw',savefig=False,outfig='',
+                     norm_type='abs',pols=['EE','NN']):
+    """
+    Plots cross visibility waterfall alongside waterfalls of constituent autos. Commonly used in conjunction with utils.loadCrossVis.
+    
+    Parameters:
+    ----------
+    uv: UVData Object
+        Sample UVData Object, used only to get frequency and antenna information.
+    crossVis: Numpy Array
+        Array containing cross and auto visibilities. Typically calculated from utils.loadCrossVis.
+    lsts: Numpy Array
+        Array containing lst values mapping to vis_array. Typically calculated from utils.loadCrossVis.
+    bls: List
+        List of baselines included in vis_array. Typically calculated from utils.loadCrossVis.
+    ant1: Int
+        First antenna in desired baseline to plot.
+    ant2: Int
+        Second antenna in desired baseline to plot.
+    plot_type: String
+        Can be either 'raw' to plot raw visibilities, or 'ms' to plot mean-subtracted visibilities. Only applies to autos, crosses are always raw.
+    savefig: Boolean
+        Option to write out the figure.
+    outfig: String
+        Full path to desired output figure.
+    norm_type: String
+        Can be any of 'abs','real','imag','phase' - sets how the complex cross visibilities are handled.
+    pols: List
+        Set of polarizations to include. Can be any set of ['EE','NN','EN','NE']
+    
+    Returns:
+    --------
+    None
+    
+    """
+    
+    import matplotlib.colors as colors
+    from matplotlib import pyplot as plt
+    
+    fig, ax = plt.subplots(len(pols),3,figsize=(16,10))
+    freqs = uv.freq_array[0]*1e-6
+    yticks = [int(i) for i in np.linspace(0, len(lst_array) - 1, 6)]
+    yticklabels = [np.around(lst_array[ytick], 1) for ytick in yticks]
+    xticks = [int(i) for i in np.linspace(0, len(freqs) - 1, 5)]
+    xticklabels = np.around(freqs[xticks], 0)
+    for i,p in enumerate(pols):
+        ind1 = bls.index((ant1,ant1))
+        ind2 = bls.index((ant2,ant2))
+        indcross = bls.index((ant1,ant2))
+        auto1 = np.log10(abs(crossVis[:,:,i,ind1]))
+        auto2 = np.log10(abs(crossVis[:,:,i,ind2]))
+        cmap = 'viridis'
+        if norm_type == 'abs':
+            cross = np.log10(abs(crossVis[:,:,i,indcross]))
+            cmin = 3
+            cmax = 6
+        elif norm_type == 'real':
+            cross = np.real(crossVis[:,:,i,indcross])
+            cmin = -1e5
+            cmax = 1e5
+        elif norm_type == 'imag':
+            cross = np.imag(crossVis[:,:,i,indcross])
+            cmin =-1e7
+            cmax=1e7
+        elif norm_type == 'phase':
+            cross = np.angle(crossVis[:,:,i,indcross])
+            cmap = 'twilight'
+            cmin = -np.pi
+            cmax = np.pi
+        
+        if plot_type == 'raw':
+            im = ax[i][0].imshow(auto1,aspect='auto',interpolation='nearest',vmin=6,vmax=8)
+            plt.colorbar(im,ax=ax[i][0])
+            im = ax[i][1].imshow(cross,aspect='auto',interpolation='nearest',vmin=cmin,vmax=cmax,cmap=cmap)
+            plt.colorbar(im,ax=ax[i][1])
+            if norm_type in ['real','imag']:
+                ax[i][1].set_yscale('symlog')
+            im = ax[i][2].imshow(auto2,aspect='auto',interpolation='nearest',vmin=6,vmax=8)
+            plt.colorbar(im,ax=ax[i][2])
+        elif plot_type == 'ms':
+            auto1 = np.subtract(auto1,np.nanmean(auto1,axis=0))
+            auto2 = np.subtract(auto2,np.nanmean(auto2,axis=0))
+            if i<2:
+                im = ax[i][0].imshow(auto1,aspect='auto',interpolation='nearest',vmin=-0.07,vmax=0.07)
+                plt.colorbar(im,ax=ax[i][0])
+                im = ax[i][2].imshow(auto2,aspect='auto',interpolation='nearest',vmin=-0.07,vmax=0.07)
+                plt.colorbar(im,ax=ax[i][2])
+            else:
+                ax[i][0].axis('off')
+                ax[i][2].axis('off')
+            if norm_type in ['real','imag']:
+                im = ax[i][1].imshow(cross,aspect='auto',interpolation='nearest',cmap=cmap,
+                                    norm=colors.SymLogNorm(linthresh=0.03, linscale=0.03,
+                                                  vmin=cmin, vmax=cmax))
+            else:
+                im = ax[i][1].imshow(cross,aspect='auto',interpolation='nearest',vmin=cmin,vmax=cmax,cmap=cmap)
+            plt.colorbar(im,ax=ax[i][1])
+            
+        for n in [0,1,2]:
+            if i==3:
+                ax[i][n].set_xticks(xticks)
+                ax[i][n].set_xticklabels(xticklabels)
+            else:
+                ax[i][n].set_xticks([])
+        if i==0:
+            ax[i][0].set_title(f'{ant1} auto')
+            ax[i][1].set_title(f'({ant1},{ant2})')
+            ax[i][2].set_title(f'{ant2} auto')
+    plt.suptitle(f'{plot_type} - {norm_type}')
+    for n in range(len(pols)):
+        ax[n][0].set_yticks(yticks)
+        ax[n][0].set_yticklabels(yticklabels)
+        ax[n][0].set_ylabel(pols[n])
+        for m in [1,2]:
+            ax[n][m].set_yticks([])
+    if savefig:
+        plt.savefig(outfig,bbox_inches='tight')
+        plt.close()
 
 
 def plot_antenna_positions(uv, badAnts=[], flaggedAnts={}, use_ants="all"):
