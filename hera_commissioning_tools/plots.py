@@ -2051,6 +2051,8 @@ def makeCorrMatrices(
     use_ants="all",
     sm=None,
     df=None,
+    smfile=None,
+    dffile=None,
     nfilesUse=10,
     freq_inds=[],
     nanDiffs=False,
@@ -2107,9 +2109,9 @@ def makeCorrMatrices(
     """
     from pyuvdata import UVData
 
-    if HHfiles is None and sm is None:
+    if HHfiles is None and sm is None and smfile is None:
         print(
-            "##### Must either pass in a list of files or a UVData object for both sum and diff visibilities"
+            "##### Must either pass in a list of files, a single uvh5 file, or a UVData object for both sum and diff visibilities"
         )
     if HHfiles is not None:
         nHH = len(HHfiles)
@@ -2150,39 +2152,70 @@ def makeCorrMatrices(
             use_ants = uv_single.get_ants()
             del uv_single
 
-    if sm is None:
-        sm = UVData()
-        if printStatusUpdates:
-            print("Reading sum files")
-        sm.read(use_files_sum, antenna_nums=use_ants)
-    else:
-        sm = sm.select(antenna_nums=use_ants,inplace=False)
-        times = np.unique(sm.time_array)
-        if len(times) > 2*nfilesUse:
-            timesUse = times[0:nfilesUse*2]
-            sm.select(times=timesUse)
-    if write_uvh5:
-        if printStatusUpdates:
-            print('Writing uvh5 sum files')
-        JD = int(sm.time_array[0])
-        sm.write_uvh5(f'{JD}_{nfilesUse}files_{nfreqs}freqs_sum.uvh5')
-
-    if df is None:
+    if df is None and dffile is None:
+        if write_uvh5:
+            write_diff = True
+        else:
+            write_diff = False
         df = UVData()
         if printStatusUpdates:
             print("Reading diff files")
         df.read(use_files_diff, antenna_nums=use_ants)
+    elif df is None and type(dffile) is str:
+        write_diff=False
+        if printStatusUpdates:
+            print("Reading diff files")
+        df = UVData()
+        df.read(dffile,antenna_nums=use_ants)
+        times = np.unique(df.time_array)
+        if len(times) > 2*nfilesUse:
+            timesUse = times[0:nfilesUse*2]
+            df.select(times=timesUse)
     else:
+        write_diff=False
         df = df.select(antenna_nums=use_ants,inplace=False)
         times = np.unique(df.time_array)
         if len(times) > 2*nfilesUse:
             timesUse = times[0:nfilesUse*2]
             df.select(times=timesUse)
-    if write_uvh5:
-        JD = int(sm.time_array[0])
+    if write_diff:
+        JD = int(df.time_array[0])
         if printStatusUpdates:
             print('Writing uvh5 diff files')
-        df.write_uvh5(f'{JD}_{nfilesUse}files_{nfreqs}freqs_diff.uvh5')
+        df.write_uvh5(f'{JD}_{nfilesUse}files_{nfreqs}freqs_diff.uvh5',clobber=True)
+            
+    if sm is None and smfile is None:
+        if write_uvh5:
+            write_sum = True
+        else:
+            write_sum = False
+        sm = UVData()
+        if printStatusUpdates:
+            print("Reading sum files")
+        sm.read(use_files_sum, antenna_nums=use_ants)
+    elif sm is None and type(smfile) is str:
+        write_sum=False
+        if printStatusUpdates:
+            print("Reading sum files")
+        sm = UVData()
+        sm.read(smfile,antenna_nums=use_ants)
+        times = np.unique(sm.time_array)
+        if len(times) > 2*nfilesUse:
+            timesUse = times[0:nfilesUse*2]
+            sm.select(times=timesUse)
+    else:
+        write_sum=False
+        sm = sm.select(antenna_nums=use_ants,inplace=False)
+        times = np.unique(sm.time_array)
+        if len(times) > 2*nfilesUse:
+            timesUse = times[0:nfilesUse*2]
+            sm.select(times=timesUse)
+    if write_sum:
+        if printStatusUpdates:
+            print('Writing uvh5 sum files')
+        JD = int(sm.time_array[0])
+        sm.write_uvh5(f'{JD}_{nfilesUse}files_{nfreqs}freqs_sum.uvh5',clobber=True)
+
     # Calculate real and imaginary correlation matrices
     if printStatusUpdates:
         print("Calculating real matrix components")
