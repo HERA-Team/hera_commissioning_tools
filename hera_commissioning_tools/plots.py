@@ -37,7 +37,7 @@ def plot_autos(
     ylim=None,
     logscale=True,
     savefig=False,
-    title="",
+    outfig="",
     plot_nodes='all',
     time_slice=False,
     slice_freq_inds=[],
@@ -62,7 +62,7 @@ def plot_autos(
         Option to plot the data on a logarithmic scale. Default is True.
     savefig: Boolean
         Option to write out the figure.
-    title: String
+    outfig: String
         Path to full figure name, required if savefig is True.
 
     Returns:
@@ -111,7 +111,7 @@ def plot_autos(
         elif dtype == "noise":
             ylim = [75, 75.2]
 
-    fig, axes = plt.subplots(Yside, Nside, figsize=(16, Yside * 3))
+    fig, axes = plt.subplots(Yside, 12, figsize=(16, Yside * 3))
 
     ptitle = 1.92 / (Yside * 3)
     fig.suptitle("JD = {0}, time = {1} UTC".format(jd, utc), fontsize=10, y=1 + ptitle)
@@ -269,7 +269,7 @@ def plot_autos(
             f"Node {n}", (1.1, 0.3), xycoords="axes fraction", rotation=270
         )
     if savefig is True:
-        plt.savefig(title)
+        plt.savefig(outfig,bbox_inches='tight')
         plt.show()
     else:
         plt.show()
@@ -400,7 +400,7 @@ def plot_wfs(
 
     h = cm_active.get_active(at_date=jd, float_format="jd")
     ptitle = 1.92 / (Yside * 3)
-    fig, axes = plt.subplots(Yside, Nside, figsize=(16, Yside * 3))
+    fig, axes = plt.subplots(Yside, 12, figsize=(16, Yside * 3))
     fig.suptitle(f"{pol} Polarization", fontsize=14, y=1 + ptitle)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
     fig.subplots_adjust(left=0, bottom=0.1, right=0.9, top=1, wspace=0.1, hspace=0.3)
@@ -1610,6 +1610,7 @@ def plot_single_matrix(
     pols=["EE", "NN", "EN", "NE"],
     savefig=False,
     outfig="",
+    figtype='png',
     cmap="plasma",
     title="Corr Matrix",
     incAntLines=False,
@@ -1940,6 +1941,7 @@ def makeCorrMatrices(
     outfig="",
     write_uvh5=False,
     plotMatrices=True,
+    figtype='png',
     printStatusUpdates=False,
 ):
     """
@@ -2035,6 +2037,15 @@ def makeCorrMatrices(
         sm.read(use_files_sum, antenna_nums=use_ants)
     else:
         sm = sm.select(antenna_nums=use_ants,inplace=False)
+        times = np.unique(sm.time_array)
+        if len(times) > 2*nfilesUse:
+            timesUse = times[0:nfilesUse*2]
+            sm.select(times=timesUse)
+    if write_uvh5:
+        if printStatusUpdates:
+            print('Writing uvh5 sum files')
+        JD = int(sm.time_array[0])
+        sm.write_uvh5(f'{JD}_{nfilesUse}files_{nfreqs}freqs_sum.uvh5')
 
     if df is None:
         df = UVData()
@@ -2043,10 +2054,14 @@ def makeCorrMatrices(
         df.read(use_files_diff, antenna_nums=use_ants)
     else:
         df = df.select(antenna_nums=use_ants,inplace=False)
-
+        times = np.unique(df.time_array)
+        if len(times) > 2*nfilesUse:
+            timesUse = times[0:nfilesUse*2]
+            df.select(times=timesUse)
     if write_uvh5:
         JD = int(sm.time_array[0])
-        sm.write_uvh5(f'{JD}_{nfilesUse}files_{nfreqs}freqs_sum.uvh5')
+        if printStatusUpdates:
+            print('Writing uvh5 diff files')
         df.write_uvh5(f'{JD}_{nfilesUse}files_{nfreqs}freqs_diff.uvh5')
     # Calculate real and imaginary correlation matrices
     if printStatusUpdates:
@@ -2077,7 +2092,7 @@ def makeCorrMatrices(
         if printStatusUpdates:
             print("Plotting real matrix")
         plot_single_matrix(
-            sm, corr_real, logScale=True, vmin=0.01, title="|Real|", pols=pols, savefig=savefig, outfig=f'{outfig}_{nfilesUse}files_{nfreqs}freqs_real.png',
+            sm, corr_real, logScale=True, vmin=0.01, title="|Real|", pols=pols, savefig=savefig, figtype=figtype, outfig=f'{outfig}_{nfilesUse}files_{nfreqs}freqs_real.{figtype}',
         )
         # Plot matrix of imaginary values
         if printStatusUpdates:
@@ -2092,7 +2107,8 @@ def makeCorrMatrices(
             title="Imaginary",
             pols=pols,
             savefig=savefig,
-            outfig=f'{outfig}_{nfilesUse}files_{nfreqs}freqs_imag.png',
+            figtype=figtype,
+            outfig=f'{outfig}_{nfilesUse}files_{nfreqs}freqs_imag.{figtype}',
         )
         # Plot matrix of real values on linlog color scale.
         if printStatusUpdates:
@@ -2107,7 +2123,8 @@ def makeCorrMatrices(
             cmap="bwr",
             pols=pols,
             savefig=savefig,
-            outfig=f'{outfig}_{nfilesUse}files_{nfreqs}freqs_linlog.png',
+            figtype=figtype,
+            outfig=f'{outfig}_{nfilesUse}files_{nfreqs}freqs_linlog.{figtype}',
         )
 
     return sm, df, corr_real, corr_imag, perBlSummary
@@ -2808,7 +2825,9 @@ def plotSmithChartByNode(
         if savefig:
             print(f"Saving {outfig}")
             plt.savefig(outfig)
-        plt.show()
+            plt.close()
+        else:
+            plt.show()
         plt.close("all")
 
 
