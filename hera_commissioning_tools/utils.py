@@ -192,6 +192,55 @@ def detectWrongConnectionAnts(uvd, dtype="load"):
                 wrongAnts.append(ant)
     return wrongAnts
 
+def loadCrossVis(HHfiles, ants, savearray=False, outfile='', printStatusUpdates=False):
+    """
+    Loads cross and auto visibilitis for all baselines constructed by combining antennas in ants.
+    
+    Parameters:
+    ----------
+    HHfiles: List
+        List of sum files to load.
+    ants: List
+        List of antennas to load data for. Will also load all cross visibilities from all possible combinations of antennas in ants.
+    savearray: Boolean
+        Option to save out the loaded visibilities - will save to a numpy array (.npy file), which will be much faster to read in again. Will also save the lst array and the list of baselines, which can be used to index into the visibility array.
+    outfile: String
+        File prefix to save data to if savearray is True.
+    printStatusUpdates: Boolean
+        Option to print updates as files are being loaded.
+        
+    Returns:
+    ---------
+    vis_array: Numpy Array
+        Array of visibilities of shape (times, frequencies, polarizations, baselines). Polarizations are ordered [xx,yy,xy,yx].
+    lst_array: Numpy Array
+        List of LST values mapping to visibility array.
+    bls: List
+        List of baselines included in the visibilitiy array. The order of these maps to the baseline axis of the visibility array.
+    """
+    bls = [(a1,a2) for a1 in ants for a2 in ants]
+    vis_array = np.zeros((2*len(HHfiles),len(uv_sum_sky.freq_array[0]),4,len(bls)),dtype=np.complex_)
+    lst_array = np.zeros((2*len(HHfiles)))
+    for i,f in enumerate(HHfiles):
+        if i%10==0 and printStatusUpdates:
+            print(f'reading file {i}')
+        JD = float(f.split('zen.')[1].split('.sum')[0])
+        uv = UVData()
+        uv.read(f,antenna_nums=ants)
+        for j,bl in enumerate(bls):
+            vis = uv.get_data(bl[0],bl[1])
+            vis_array[i*2:i*2+2,:,:,j] = vis
+        lsts = uv.lst_array * 3.819719
+        inds = np.unique(lsts, return_index=True)[1]
+        lsts = [lsts[ind] for ind in sorted(inds)]
+        lst_array[i*2:i*2+2] = lsts
+    if savearray:
+        print(f'saving to {outfile}')
+        np.save(f'{outfile}_vis', vis_array)
+        np.save(f'{outfile}_lsts', lst_array)
+        np.save(f'{outfile}_bls', bls)
+    return vis_array, lst_array, bls
+
 
 def generate_nodeDict(uv, pols=["E"]):
     """
