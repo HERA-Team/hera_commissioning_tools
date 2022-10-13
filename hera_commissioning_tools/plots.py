@@ -2120,13 +2120,14 @@ def makeCorrMatrices(
         else:
             use_files_sum = HHfiles[nHH // 2 - nfilesUse // 2 : nHH // 2 + nfilesUse // 2]
         use_files_diff = [file.split("sum")[0] + "diff.uvh5" for file in use_files_sum]
-        if len(freq_inds) == 0:
-            print("All frequency bins")
-            nfreqs = 'all'
-        else:
-            nfreqs = freq_inds[1] - freq_inds[0]
-            print(f"{nfreqs} frequency bins")
         print(f"{len(use_files_sum)} times")
+    if len(freq_inds) == 0:
+        print("All frequency bins")
+        nfreqs = 'all'
+    else:
+        nfreqs = freq_inds[1] - freq_inds[0]
+        print(f"{nfreqs} frequency bins")
+    
     if plot_nodes is not 'all':
         if sm is None:
             uv = UVData()
