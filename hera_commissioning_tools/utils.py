@@ -2,7 +2,41 @@
 
 import numpy as np
 from pyuvdata import UVData
+import subprocess
 
+
+
+def get_git_revision_hash() -> str:
+    """
+    Function to get current git hash of this repo.
+    """
+    return subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
+
+def write_params_to_text(outfile,args,curr_func=None,curr_file=None,githash=None,**kwargs):
+    with open(f'{outfile}.txt', 'w') as f:
+        if curr_func is not None:
+            f.write(f'Called from {curr_func}() \n')
+        if curr_file is not None:
+            f.write(f'From within {curr_file} \n')
+        if githash is not None:
+            f.write(f'githash: {githash} \n')
+        f.write('\n \n')
+        for arg in args.keys():
+            val = args[arg]
+            if type(val) is list and len(val) > 150:
+                f.write(f'{arg}: [{val[0]} ... {val[-1]}]')
+            elif isinstance(val,UVData):
+                f.write(f'{arg}: UVData Object \n')
+                f.write(f'    jd range: {val.time_array[0]} - {val.time_array[-1]} \n')
+                f.write(f'    lst range: {val.lst_array[0]* 3.819719} - {val.lst_array[-1]* 3.819719} \n')
+                f.write(f'    freq range: {val.freq_array[0][0]*1e-6} - {val.freq_array[0][-1]*1e-6} \n')
+                f.write(f'    antenna numbers: {val.get_ants()} \n')
+            else:
+                f.write(f'{arg}: {val}')
+            f.write('\n')
+        for arg in kwargs.keys():
+            f.write(f'{arg}: {kwargs[arg]}')
+            f.write('\n')
 
 def get_files(data_path, JD):
     """

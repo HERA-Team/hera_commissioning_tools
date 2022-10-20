@@ -3,6 +3,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from . import utils
+import os
+import inspect
 
 # useful global variables
 status_colors = dict(
@@ -30,6 +32,18 @@ status_abbreviations = dict(
     not_connected="No-Con",
 )
 
+githash = utils.get_git_revision_hash()
+curr_file = os.path.dirname(os.path.abspath(__file__))
+
+def testWriteArgs(x,y,z,bananas,h=5,p=[1,2,3],m=False,outfig='testWriteArgs.png'):
+    import inspect
+    fig = plt.figure()
+    plt.plot([1,2],[4,5])
+    plt.savefig(outfig)
+    if write_params:
+        args = locals()
+        curr_func = inspect.stack()[0][3]
+        utils.write_params_to_text(outfig,args,curr_func,curr_file,githash)
 
 def plot_autos(
     uvd,
@@ -37,6 +51,7 @@ def plot_autos(
     ylim=None,
     logscale=True,
     savefig=False,
+    write_params=True,
     outfig="",
     plot_nodes='all',
     time_slice=False,
@@ -270,6 +285,10 @@ def plot_autos(
         )
     if savefig is True:
         plt.savefig(outfig,bbox_inches='tight')
+        if write_params:
+            args = locals()
+            curr_func = inspect.stack()[0][3]
+            utils.write_params_to_text(outfig,args,curr_func,curr_file,githash)
         plt.show()
     else:
         plt.show()
@@ -281,6 +300,7 @@ def plot_wfs(
     pol="NN",
     plotType="raw",
     savefig=False,
+    write_params=True,
     vmin=None,
     vmax=None,
     wrongAnts=[],
@@ -520,6 +540,10 @@ def plot_wfs(
         cbar.set_label(f"Node {n}", rotation=270, labelpad=15)
     if savefig is True:
         plt.savefig(outfig, bbox_inches="tight", dpi=100)
+        if write_params:
+            args = locals()
+            curr_func = inspect.stack()[0][3]
+            utils.write_params_to_text(outfig,args,curr_func,curr_file,githash)
     plt.show()
     plt.close()
 
@@ -533,6 +557,7 @@ def waterfall_lineplot(
     title="",
     size="large",
     savefig=False,
+    write_params=True,
     outfig="",
     sliceind=None,
     ylim=None,
@@ -699,6 +724,10 @@ def waterfall_lineplot(
         )
     if savefig:
         plt.savefig(outfig)
+        if write_params:
+            args = locals()
+            curr_func = inspect.stack()[0][3]
+            utils.write_params_to_text(outfig,args,curr_func,curr_file,githash)
     plt.show()
     plt.close()
 
@@ -1005,7 +1034,7 @@ def plotVisibilitySpectra(uv, use_ants="all", badAnts=[], pols=["xx", "yy"]):
     plt.close()
     
 
-def plotCrossAndAutos(uv,crossVis,lsts,bls,ant1,ant2,plot_type = 'raw',savefig=False,outfig='',
+def plotCrossAndAutos(uv,crossVis,lsts,bls,ant1,ant2,plot_type = 'raw',savefig=False,write_params=True,outfig='',
                      norm_type='abs',pols=['EE','NN']):
     """
     Plots cross visibility waterfall alongside waterfalls of constituent autos. Commonly used in conjunction with utils.loadCrossVis.
@@ -1122,6 +1151,10 @@ def plotCrossAndAutos(uv,crossVis,lsts,bls,ant1,ant2,plot_type = 'raw',savefig=F
             ax[n][m].set_yticks([])
     if savefig:
         plt.savefig(outfig,bbox_inches='tight')
+        if write_params:
+            args = locals()
+            curr_func = inspect.stack()[0][3]
+            utils.write_params_to_text(outfig,args,curr_func,curr_file,githash)
         plt.close()
 
 
@@ -1444,6 +1477,7 @@ def plotCrossWaterfallsByCorrValue(
     perBlSummary=None,
     percentile_set=[1, 20, 40, 60, 80, 99],
     savefig=False,
+    write_params=True,
     outfig="",
     pol="allpols",
     metric="abs",
@@ -1592,6 +1626,10 @@ def plotCrossWaterfallsByCorrValue(
         else:
             print(f"Saving {outfig}_{pol}_{metric}.jpeg")
             plt.savefig(f"{outfig}_{pol}_{metric}.jpeg", bbox_inches="tight")
+        if write_params:
+            args = locals()
+            curr_func = inspect.stack()[0][3]
+            utils.write_params_to_text(outfig,args,curr_func,curr_file,githash)
 
 
 def plotTimeDifferencedSumWaterfalls(
@@ -1601,6 +1639,7 @@ def plotTimeDifferencedSumWaterfalls(
     uvd=None,
     polNum=0,
     savefig=False,
+    write_params=True,
     outfig="",
     internodeOnly=True,
     norm="real",
@@ -1713,6 +1752,10 @@ def plotTimeDifferencedSumWaterfalls(
     fig.suptitle(norm)
     if savefig is True:
         plt.savefig(outfig)
+        if write_params:
+            args = locals()
+            curr_func = inspect.stack()[0][3]
+            utils.write_params_to_text(outfig,args,curr_func,curr_file,githash)
     plt.show()
     plt.close()
     return uvd, sdiffs
@@ -1729,6 +1772,7 @@ def plot_single_matrix(
     logScale=False,
     pols=["EE", "NN", "EN", "NE"],
     savefig=False,
+    write_params=True,
     outfig="",
     figtype='png',
     cmap="plasma",
@@ -1898,6 +1942,10 @@ def plot_single_matrix(
     axs.set_title(title)
     if savefig is True:
         plt.savefig(outfig, bbox_inches="tight")
+        if write_params:
+            args = locals()
+            curr_func = inspect.stack()[0][3]
+            utils.write_params_to_text(outfig,args,curr_func,curr_file,githash)
         plt.close()
     else:
         plt.show()
@@ -2060,6 +2108,7 @@ def makeCorrMatrices(
     interleave="even_odd",
     plot_nodes='all',
     savefig=False,
+    write_params=True,
     outfig="",
     write_uvh5=False,
     plotMatrices=True,
@@ -2246,7 +2295,8 @@ def makeCorrMatrices(
         if printStatusUpdates:
             print("Plotting real matrix")
         plot_single_matrix(
-            sm, corr_real, logScale=True, vmin=0.01, title="|Real|", pols=pols, savefig=savefig, figtype=figtype, outfig=f'{outfig}_{nfilesUse}files_{nfreqs}freqs_real.{figtype}',
+            sm, corr_real, logScale=True, vmin=0.01, title="|Real|", pols=pols, savefig=savefig, write_params=write_params,
+            figtype=figtype, outfig=f'{outfig}_{nfilesUse}files_{nfreqs}freqs_real.{figtype}',
         )
         # Plot matrix of imaginary values
         if printStatusUpdates:
@@ -2261,6 +2311,7 @@ def makeCorrMatrices(
             title="Imaginary",
             pols=pols,
             savefig=savefig,
+            write_params=write_params,
             figtype=figtype,
             outfig=f'{outfig}_{nfilesUse}files_{nfreqs}freqs_imag.{figtype}',
         )
@@ -2277,6 +2328,7 @@ def makeCorrMatrices(
             cmap="bwr",
             pols=pols,
             savefig=savefig,
+            write_params=write_params,
             figtype=figtype,
             outfig=f'{outfig}_{nfilesUse}files_{nfreqs}freqs_linlog.{figtype}',
         )
@@ -2291,6 +2343,7 @@ def plotPerNodeSpectraAndHists(
     interleave="even_odd",
     interval=1,
     savefig=False,
+    write_params=True
     outfig="",
     freq_range=[132, 148],
     pol="allpols",
@@ -2452,6 +2505,10 @@ def plotPerNodeSpectraAndHists(
     
     if savefig:
         plt.savefig(outfig, bbox_inches="tight")
+        if write_params:
+            args = locals()
+            curr_func = inspect.stack()[0][3]
+            utils.write_params_to_text(outfig,args,curr_func,curr_file,githash)
 
     return perNodeSummary
 
@@ -2462,6 +2519,7 @@ def plotCorrSpectraAndHists(
     interleave="even_odd",
     interval=1,
     savefig=False,
+    write_params=True,
     outfig="",
     freq_range=[132, 148],
     pol="allpols",
@@ -2748,6 +2806,10 @@ def plotCorrSpectraAndHists(
     fig.suptitle(f"{interleave} interleave - {pol} pol")
     if savefig is True:
         plt.savefig(outfig, bbox_inches="tight")
+        if write_params:
+            args = locals()
+            curr_func = inspect.stack()[0][3]
+            utils.write_params_to_text(outfig,args,curr_func,curr_file,githash)
         plt.close()
     else:
         plt.show()
@@ -2760,6 +2822,7 @@ def plotSmithChartByNode(
     pols=["EE", "NN", "EN", "NE"],
     order="snap",
     savefig=False,
+    write_params=True,
     outfig="",
     highlightAnts=[],
     upper="smith",
@@ -2979,6 +3042,10 @@ def plotSmithChartByNode(
         if savefig:
             print(f"Saving {outfig}")
             plt.savefig(outfig)
+            if write_params:
+                args = locals()
+                curr_func = inspect.stack()[0][3]
+                utils.write_params_to_text(outfig,args,curr_func,curr_file,githash)
             plt.close()
         else:
             plt.show()
