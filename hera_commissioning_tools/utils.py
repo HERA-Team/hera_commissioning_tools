@@ -6,11 +6,14 @@ import subprocess
 
 
 
-def get_git_revision_hash() -> str:
+def get_git_revision_hash(dirpath=None) -> str:
     """
     Function to get current git hash of this repo.
     """
-    return subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
+    if dirpath is None:
+        return subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
+    else:
+        return subprocess.check_output(['git', '-C', str(dirpath), 'rev-parse', 'HEAD']).decode('ascii').strip()
 
 def write_params_to_text(outfile,args,curr_func=None,curr_file=None,githash=None,**kwargs):
     with open(f'{outfile}.txt', 'w') as f:
