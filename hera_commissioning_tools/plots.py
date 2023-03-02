@@ -1158,7 +1158,7 @@ def plotCrossAndAutos(uv,crossVis,lsts,bls,ant1,ant2,plot_type = 'raw',savefig=F
         plt.close()
 
 
-def plot_antenna_positions(uv, badAnts=[], flaggedAnts={}, use_ants="all"):
+def plot_antenna_positions(uv, badAnts=[], flaggedAnts={}, use_ants="all",hexsize=35):
     """
     Plots the positions of all antennas that have data, colored by node.
 
@@ -1224,7 +1224,7 @@ def plot_antenna_positions(uv, badAnts=[], flaggedAnts={}, use_ants="all"):
                                 x,
                                 y,
                                 marker="h",
-                                markersize=40,
+                                markersize=hexsize,
                                 color=color,
                                 alpha=falpha,
                                 markeredgecolor="black",
@@ -1236,7 +1236,7 @@ def plot_antenna_positions(uv, badAnts=[], flaggedAnts={}, use_ants="all"):
                             x,
                             y,
                             marker="h",
-                            markersize=40,
+                            markersize=hexsize,
                             color=color,
                             alpha=falpha,
                             label=str(n),
@@ -1248,7 +1248,7 @@ def plot_antenna_positions(uv, badAnts=[], flaggedAnts={}, use_ants="all"):
                                 x,
                                 y,
                                 marker="h",
-                                markersize=40,
+                                markersize=hexsize,
                                 color=color,
                                 markeredgecolor=flaggedAnts[a],
                                 markeredgewidth=widthf,
@@ -1259,7 +1259,7 @@ def plot_antenna_positions(uv, badAnts=[], flaggedAnts={}, use_ants="all"):
                                 x,
                                 y,
                                 marker="h",
-                                markersize=40,
+                                markersize=hexsize,
                                 color=color,
                                 markeredgecolor="black",
                                 markeredgewidth=width,
@@ -1271,7 +1271,7 @@ def plot_antenna_positions(uv, badAnts=[], flaggedAnts={}, use_ants="all"):
                                 x,
                                 y,
                                 marker="h",
-                                markersize=40,
+                                markersize=hexsize,
                                 color=color,
                                 alpha=falpha,
                                 markeredgecolor="black",
@@ -1283,7 +1283,7 @@ def plot_antenna_positions(uv, badAnts=[], flaggedAnts={}, use_ants="all"):
                             x,
                             y,
                             marker="h",
-                            markersize=40,
+                            markersize=hexsize,
                             color=color,
                             alpha=falpha,
                             label=str(n),
@@ -1296,7 +1296,7 @@ def plot_antenna_positions(uv, badAnts=[], flaggedAnts={}, use_ants="all"):
                         x,
                         y,
                         marker="h",
-                        markersize=40,
+                        markersize=hexsize,
                         color=color,
                         alpha=falpha,
                         markeredgecolor="black",
@@ -1307,7 +1307,7 @@ def plot_antenna_positions(uv, badAnts=[], flaggedAnts={}, use_ants="all"):
                             x,
                             y,
                             marker="h",
-                            markersize=40,
+                            markersize=hexsize,
                             color=color,
                             markeredgecolor=flaggedAnts[a],
                             markeredgewidth=widthf,
@@ -1318,7 +1318,7 @@ def plot_antenna_positions(uv, badAnts=[], flaggedAnts={}, use_ants="all"):
                             x,
                             y,
                             marker="h",
-                            markersize=40,
+                            markersize=hexsize,
                             color=color,
                             markeredgecolor="black",
                             markeredgewidth=width,
@@ -2343,7 +2343,7 @@ def plotPerNodeSpectraAndHists(
     interleave="even_odd",
     interval=1,
     savefig=False,
-    write_params=True
+    write_params=True,
     outfig="",
     freq_range=[132, 148],
     pol="allpols",

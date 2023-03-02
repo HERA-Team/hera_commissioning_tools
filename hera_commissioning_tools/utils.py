@@ -1,6 +1,7 @@
 """Licensed under the MIT License"""
 
 import numpy as np
+import pyuvdata
 from pyuvdata import UVData
 import subprocess
 
@@ -16,30 +17,64 @@ def get_git_revision_hash(dirpath=None) -> str:
         return subprocess.check_output(['git', '-C', str(dirpath), 'rev-parse', 'HEAD']).decode('ascii').strip()
 
 def write_params_to_text(outfile,args,curr_func=None,curr_file=None,githash=None,**kwargs):
+    from pyuvdata import UVCal
+    import matplotlib
+    
     with open(f'{outfile}.txt', 'w') as f:
+        if 'nb_path' in kwargs.keys():
+            nb_path = kwargs['nb_path']
+            f.write(f'Call came from within notebook: {nb_path}')
         if curr_func is not None:
             f.write(f'Called from {curr_func}() \n')
         if curr_file is not None:
-            f.write(f'From within {curr_file} \n')
+            f.write(f'Within {curr_file} \n')
         if githash is not None:
-            f.write(f'githash: {githash} \n')
+            f.write(f'Above file has githash: {githash} \n')
+        f.write(f'pyuvdata version: {pyuvdata.__version__} \n')
+        f.write(f'Numpy version: {np.__version__} \n')
+        f.write(f'Matplotlib version: {matplotlib.__version__} \n')
         f.write('\n \n')
+        f.write('------------------ ARGS ------------------ \n')
         for arg in args.keys():
             val = args[arg]
             if type(val) is list and len(val) > 150:
                 f.write(f'{arg}: [{val[0]} ... {val[-1]}]')
-            elif isinstance(val,UVData):
-                f.write(f'{arg}: UVData Object \n')
+            elif isinstance(val,UVData) or isinstance(val,UVCal):
+                if isinstance(val,UVData):
+                    f.write(f'{arg}: UVData Object \n')
+                    f.write(f'    antenna numbers: {val.get_ants()} \n')
+                elif isinstance(val,UVCal):
+                    f.write(f'{arg}: UVCal Object \n')
                 f.write(f'    jd range: {val.time_array[0]} - {val.time_array[-1]} \n')
                 f.write(f'    lst range: {val.lst_array[0]* 3.819719} - {val.lst_array[-1]* 3.819719} \n')
                 f.write(f'    freq range: {val.freq_array[0][0]*1e-6} - {val.freq_array[0][-1]*1e-6} \n')
-                f.write(f'    antenna numbers: {val.get_ants()} \n')
+                if hasattr(val,'file_name'):
+                    f.write(f'    File name(s): {val.file_name} \n')
+            elif type(val)==np.ufunc:
+                f.write(f'{arg}: {val.__name__}')
             else:
                 f.write(f'{arg}: {val}')
             f.write('\n')
+        f.write(' \n')
+        f.write(' \n')
         for arg in kwargs.keys():
-            f.write(f'{arg}: {kwargs[arg]}')
-            f.write('\n')
+            val = kwargs[arg]
+            if isinstance(val,UVData) or isinstance(val,UVCal):
+                if isinstance(val,UVData):
+                    f.write(f'{arg}: UVData Object \n')
+                    f.write(f'    antenna numbers: {val.get_ants()} \n')
+                elif isinstance(val,UVCal):
+                    f.write(f'{arg}: UVCal Object \n')
+                f.write(f'    jd range: {val.time_array[0]} - {val.time_array[-1]} \n')
+                f.write(f'    lst range: {val.lst_array[0]* 3.819719} - {val.lst_array[-1]* 3.819719} \n')
+                f.write(f'    freq range: {val.freq_array[0][0]*1e-6} - {val.freq_array[0][-1]*1e-6} \n')
+                if hasattr(val,'file_name'):
+                    f.write(f'    File name(s): {val.file_name} \n')
+                f.write(' \n')
+            else:
+                f.write(f'{arg}: {kwargs[arg]}')
+                f.write('\n')
+        f.write('------------------------------------------ \n')
 
 def get_files(data_path, JD):
     """
