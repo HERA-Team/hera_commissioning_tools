@@ -23,7 +23,7 @@ def write_params_to_text(outfile,args,curr_func=None,curr_file=None,githash=None
     with open(f'{outfile}.txt', 'w') as f:
         if 'nb_path' in kwargs.keys():
             nb_path = kwargs['nb_path']
-            f.write(f'Call came from within notebook: {nb_path}')
+            f.write(f'Call came from within notebook: {nb_path}\n')
         if curr_func is not None:
             f.write(f'Called from {curr_func}() \n')
         if curr_file is not None:
@@ -34,7 +34,7 @@ def write_params_to_text(outfile,args,curr_func=None,curr_file=None,githash=None
         f.write(f'Numpy version: {np.__version__} \n')
         f.write(f'Matplotlib version: {matplotlib.__version__} \n')
         f.write('\n \n')
-        f.write('------------------ ARGS ------------------ \n')
+        f.write('------------------ FUNCTION ARGS ------------------ \n')
         for arg in args.keys():
             val = args[arg]
             if type(val) is list and len(val) > 150:
@@ -57,8 +57,11 @@ def write_params_to_text(outfile,args,curr_func=None,curr_file=None,githash=None
             f.write('\n')
         f.write(' \n')
         f.write(' \n')
+        f.write('------------------ ADDITIONAL INFO ------------------ \n')
         for arg in kwargs.keys():
             val = kwargs[arg]
+            if arg == 'nb_path':
+                continue
             if isinstance(val,UVData) or isinstance(val,UVCal):
                 if isinstance(val,UVData):
                     f.write(f'{arg}: UVData Object \n')
