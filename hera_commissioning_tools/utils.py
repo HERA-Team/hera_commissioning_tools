@@ -25,7 +25,7 @@ def write_params_to_text(outfile,args,curr_func=None,curr_file=None,githash=None
             nb_path = kwargs['nb_path']
             f.write(f'Call came from within notebook: {nb_path}\n')
         if curr_func is not None:
-            f.write(f'Called from {curr_func}() \n')
+            f.write(f'Called function {curr_func}() \n')
         if curr_file is not None:
             f.write(f'Within {curr_file} \n')
         if githash is not None:
@@ -43,15 +43,19 @@ def write_params_to_text(outfile,args,curr_func=None,curr_file=None,githash=None
                 if isinstance(val,UVData):
                     f.write(f'{arg}: UVData Object \n')
                     f.write(f'    antenna numbers: {val.get_ants()} \n')
+                    f.write(f'    jd range: {val.time_array[0]} - {val.time_array[-1]} \n')
+                    f.write(f'    lst range: {val.lst_array[0]* 3.819719} - {val.lst_array[-1]* 3.819719} \n')
                 elif isinstance(val,UVCal):
                     f.write(f'{arg}: UVCal Object \n')
-                f.write(f'    jd range: {val.time_array[0]} - {val.time_array[-1]} \n')
-                f.write(f'    lst range: {val.lst_array[0]* 3.819719} - {val.lst_array[-1]* 3.819719} \n')
+                    f.write(f'    jd range: {val.time_range[0]} - {val.time_range[-1]} \n')
+                    f.write(f'    lst range: {val.lst_range[0]* 3.819719} - {val.lst_range[-1]* 3.819719} \n')
                 f.write(f'    freq range: {val.freq_array[0][0]*1e-6} - {val.freq_array[0][-1]*1e-6} \n')
                 if hasattr(val,'file_name'):
-                    f.write(f'    File name(s): {val.file_name} \n')
+                    f.write(f'    File name(s): {val.filename} \n')
             elif type(val)==np.ufunc:
                 f.write(f'{arg}: {val.__name__}')
+            elif arg=='kwargs':
+                continue
             else:
                 f.write(f'{arg}: {val}')
             f.write('\n')
