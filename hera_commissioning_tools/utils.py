@@ -50,7 +50,7 @@ def write_params_to_text(outfile,args,curr_func=None,curr_file=None,githash=None
                     f.write(f'    jd range: {val.time_range[0]} - {val.time_range[-1]} \n')
                     f.write(f'    lst range: {val.lst_range[0]* 3.819719} - {val.lst_range[-1]* 3.819719} \n')
                 f.write(f'    freq range: {val.freq_array[0][0]*1e-6} - {val.freq_array[0][-1]*1e-6} \n')
-                if hasattr(val,'file_name'):
+                if hasattr(val,'filename'):
                     f.write(f'    File name(s): {val.filename} \n')
             elif type(val)==np.ufunc:
                 f.write(f'{arg}: {val.__name__}')
