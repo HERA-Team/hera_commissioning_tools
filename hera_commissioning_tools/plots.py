@@ -2202,37 +2202,40 @@ def makeCorrMatrices(
             use_ants = uv_single.get_ants()
             del uv_single
 
-    if df is None and dffile is None:
-        if write_uvh5:
-            write_diff = True
+    if interleave=='even_odd':
+        if df is None and dffile is None:
+            if write_uvh5:
+                write_diff = True
+            else:
+                write_diff = False
+            df = UVData()
+            if printStatusUpdates:
+                print("Reading diff files")
+            df.read(use_files_diff, antenna_nums=use_ants)
+        elif df is None and type(dffile) is str:
+            write_diff=False
+            if printStatusUpdates:
+                print("Reading diff files")
+            df = UVData()
+            df.read(dffile,antenna_nums=use_ants)
+            times = np.unique(df.time_array)
+            if len(times) > 2*nfilesUse:
+                timesUse = times[0:nfilesUse*2]
+                df.select(times=timesUse)
         else:
-            write_diff = False
-        df = UVData()
-        if printStatusUpdates:
-            print("Reading diff files")
-        df.read(use_files_diff, antenna_nums=use_ants)
-    elif df is None and type(dffile) is str:
-        write_diff=False
-        if printStatusUpdates:
-            print("Reading diff files")
-        df = UVData()
-        df.read(dffile,antenna_nums=use_ants)
-        times = np.unique(df.time_array)
-        if len(times) > 2*nfilesUse:
-            timesUse = times[0:nfilesUse*2]
-            df.select(times=timesUse)
+            write_diff=False
+            df = df.select(antenna_nums=use_ants,inplace=False)
+            times = np.unique(df.time_array)
+            if len(times) > 2*nfilesUse:
+                timesUse = times[0:nfilesUse*2]
+                df.select(times=timesUse)
+        if write_diff:
+            JD = int(df.time_array[0])
+            if printStatusUpdates:
+                print('Writing uvh5 diff files')
+            df.write_uvh5(f'{JD}_{nfilesUse}files_{nfreqs}freqs_diff.uvh5',clobber=True)
     else:
-        write_diff=False
-        df = df.select(antenna_nums=use_ants,inplace=False)
-        times = np.unique(df.time_array)
-        if len(times) > 2*nfilesUse:
-            timesUse = times[0:nfilesUse*2]
-            df.select(times=timesUse)
-    if write_diff:
-        JD = int(df.time_array[0])
-        if printStatusUpdates:
-            print('Writing uvh5 diff files')
-        df.write_uvh5(f'{JD}_{nfilesUse}files_{nfreqs}freqs_diff.uvh5',clobber=True)
+        df=None
             
     if sm is None and smfile is None:
         if write_uvh5:
