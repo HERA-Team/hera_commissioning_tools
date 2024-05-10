@@ -32,8 +32,8 @@ status_abbreviations = dict(
     not_connected="No-Con",
 )
 
-githash = utils.get_git_revision_hash()
-curr_file = os.path.dirname(os.path.abspath(__file__))
+# githash = utils.get_git_revision_hash()
+# curr_file = os.path.dirname(os.path.abspath(__file__))
 
 def testWriteArgs(x,y,z,bananas,h=5,p=[1,2,3],m=False,outfig='testWriteArgs.png'):
     import inspect
@@ -1782,6 +1782,7 @@ def plot_single_matrix(
     antfontsize=6,
     labelfontsize=18,
     nodefontsize=14,
+    titlefontsize=28,
 ):
     """
     Function to plot a single correlation matrix (rather than the standard 4x4 set of matrices).
@@ -1904,7 +1905,7 @@ def plot_single_matrix(
         n += len(nodeDict[node]["ants"])
         axs.axhline(len(antnums) - n + 0.5, lw=5)
         axs.axvline(n + 0.5, lw=5)
-        axs.text(n - len(nodeDict[node]["ants"]) / 2, -1.7, node, fontsize=nodefontsize)
+        axs.text(n - len(nodeDict[node]["ants"]) / 2, -6, node, fontsize=nodefontsize)
     if incAntLines is True:
         for a in range(len(antnums)):
             axs.axhline(len(antnums) - a + 0.5, lw=1, alpha=0.5)
@@ -1919,7 +1920,7 @@ def plot_single_matrix(
             nantsTotal + 1,
             nantsTotal - n + len(nodeDict[node]["ants"]) / 2,
             node,
-            fontsize=14,
+            fontsize=nodefontsize,
         )
     axs.text(
         1.04,
@@ -1929,23 +1930,28 @@ def plot_single_matrix(
         transform=axs.transAxes,
         fontsize=labelfontsize,
     )
-    axs.set_xticks(np.arange(0, nantsTotal) + 1)
-    axs.set_xticklabels(antnums, rotation=90, fontsize=antfontsize)
-    axs.xaxis.set_ticks_position("top")
-    axs.set_yticks(np.arange(nantsTotal, 0, -1))
-    axs.set_yticklabels(antnums, fontsize=antfontsize)
+    if incAntLines:
+        axs.set_xticks(np.arange(0, nantsTotal) + 1)
+        axs.set_xticklabels(antnums, rotation=90, fontsize=antfontsize)
+        axs.xaxis.set_ticks_position("top")
+        axs.set_yticks(np.arange(nantsTotal, 0, -1))
+        axs.set_yticklabels(antnums, fontsize=antfontsize)
     cbar_ax = fig.add_axes([1, 0.05, 0.015, 0.89])
     cbar_ax.set_xlabel(r"$|C_{ij}|$", rotation=0, fontsize=labelfontsize)
+    cbar_ax.tick_params(labelsize=labelfontsize)
     fig.colorbar(im, cax=cbar_ax, format="%.2f")
     fig.subplots_adjust(top=1.28, wspace=0.05, hspace=1.1)
     fig.tight_layout(pad=2)
-    axs.set_title(title)
+    axs.set_title(title,fontsize=titlefontsize)
     if savefig is True:
         plt.savefig(outfig, bbox_inches="tight")
         if write_params:
             args = locals()
             curr_func = inspect.stack()[0][3]
-            utils.write_params_to_text(outfig,args,curr_func,curr_file,githash)
+            try:
+                utils.write_params_to_text(outfig,args,curr_func,curr_file,githash)
+            except:
+                utils.write_params_to_text(outfig,args,curr_func)
         plt.close()
     else:
         plt.show()
