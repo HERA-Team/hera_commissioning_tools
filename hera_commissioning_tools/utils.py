@@ -6,35 +6,45 @@ from pyuvdata import UVData
 import subprocess
 
 
-
 def get_git_revision_hash(dirpath=None) -> str:
     """
     Function to get current git hash of this repo.
     """
     if dirpath is None:
-        return subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
+        return (
+            subprocess.check_output(["git", "rev-parse", "HEAD"])
+            .decode("ascii")
+            .strip()
+        )
     else:
-        return subprocess.check_output(['git', '-C', str(dirpath), 'rev-parse', 'HEAD']).decode('ascii').strip()
+        return (
+            subprocess.check_output(["git", "-C", str(dirpath), "rev-parse", "HEAD"])
+            .decode("ascii")
+            .strip()
+        )
 
-def write_params_to_text(outfile,args,curr_func=None,curr_file=None,githash=None,**kwargs):
+
+def write_params_to_text(
+    outfile, args, curr_func=None, curr_file=None, githash=None, **kwargs
+):
     from pyuvdata import UVCal
     import matplotlib
-    
-    with open(f'{outfile}.txt', 'w') as f:
-        if 'nb_path' in kwargs.keys():
-            nb_path = kwargs['nb_path']
-            f.write(f'Call came from within notebook: {nb_path}\n')
+
+    with open(f"{outfile}.txt", "w") as f:
+        if "nb_path" in kwargs.keys():
+            nb_path = kwargs["nb_path"]
+            f.write(f"Call came from within notebook: {nb_path}\n")
         if curr_func is not None:
-            f.write(f'Called function {curr_func}() \n')
+            f.write(f"Called function {curr_func}() \n")
         if curr_file is not None:
-            f.write(f'Within {curr_file} \n')
+            f.write(f"Within {curr_file} \n")
         if githash is not None:
-            f.write(f'Above file has githash: {githash} \n')
-        f.write(f'pyuvdata version: {pyuvdata.__version__} \n')
-        f.write(f'Numpy version: {np.__version__} \n')
-        f.write(f'Matplotlib version: {matplotlib.__version__} \n')
-        f.write('\n \n')
-        f.write('------------------ FUNCTION ARGS ------------------ \n')
+            f.write(f"Above file has githash: {githash} \n")
+        f.write(f"pyuvdata version: {pyuvdata.__version__} \n")
+        f.write(f"Numpy version: {np.__version__} \n")
+        f.write(f"Matplotlib version: {matplotlib.__version__} \n")
+        f.write("\n \n")
+        f.write("------------------ FUNCTION ARGS ------------------ \n")
         for arg in args.keys():
             val = args[arg]
             if type(val) is list and len(val) > 150:
@@ -65,31 +75,36 @@ def write_params_to_text(outfile,args,curr_func=None,curr_file=None,githash=None
             elif arg=='kwargs':
                 continue
             else:
-                f.write(f'{arg}: {val}')
-            f.write('\n')
-        f.write(' \n')
-        f.write(' \n')
-        f.write('------------------ ADDITIONAL INFO ------------------ \n')
+                f.write(f"{arg}: {val}")
+            f.write("\n")
+        f.write(" \n")
+        f.write(" \n")
+        f.write("------------------ ADDITIONAL INFO ------------------ \n")
         for arg in kwargs.keys():
             val = kwargs[arg]
-            if arg == 'nb_path':
+            if arg == "nb_path":
                 continue
-            if isinstance(val,UVData) or isinstance(val,UVCal):
-                if isinstance(val,UVData):
-                    f.write(f'{arg}: UVData Object \n')
-                    f.write(f'    antenna numbers: {val.get_ants()} \n')
-                elif isinstance(val,UVCal):
-                    f.write(f'{arg}: UVCal Object \n')
-                f.write(f'    jd range: {val.time_array[0]} - {val.time_array[-1]} \n')
-                f.write(f'    lst range: {val.lst_array[0]* 3.819719} - {val.lst_array[-1]* 3.819719} \n')
-                f.write(f'    freq range: {val.freq_array[0][0]*1e-6} - {val.freq_array[0][-1]*1e-6} \n')
-                if hasattr(val,'file_name'):
-                    f.write(f'    File name(s): {val.file_name} \n')
-                f.write(' \n')
+            if isinstance(val, UVData) or isinstance(val, UVCal):
+                if isinstance(val, UVData):
+                    f.write(f"{arg}: UVData Object \n")
+                    f.write(f"    antenna numbers: {val.get_ants()} \n")
+                elif isinstance(val, UVCal):
+                    f.write(f"{arg}: UVCal Object \n")
+                f.write(f"    jd range: {val.time_array[0]} - {val.time_array[-1]} \n")
+                f.write(
+                    f"    lst range: {val.lst_array[0]* 3.819719} - {val.lst_array[-1]* 3.819719} \n"
+                )
+                f.write(
+                    f"    freq range: {val.freq_array[0][0]*1e-6} - {val.freq_array[0][-1]*1e-6} \n"
+                )
+                if hasattr(val, "file_name"):
+                    f.write(f"    File name(s): {val.file_name} \n")
+                f.write(" \n")
             else:
-                f.write(f'{arg}: {kwargs[arg]}')
-                f.write('\n')
-        f.write('------------------------------------------ \n')
+                f.write(f"{arg}: {kwargs[arg]}")
+                f.write("\n")
+        f.write("------------------------------------------ \n")
+
 
 def get_files(data_path, JD):
     """
@@ -279,10 +294,11 @@ def detectWrongConnectionAnts(uvd, dtype="load"):
                 wrongAnts.append(ant)
     return wrongAnts
 
-def loadCrossVis(HHfiles, ants, savearray=False, outfile='', printStatusUpdates=False):
+
+def loadCrossVis(HHfiles, ants, savearray=False, outfile="", printStatusUpdates=False):
     """
     Loads cross and auto visibilitis for all baselines constructed by combining antennas in ants.
-    
+
     Parameters:
     ----------
     HHfiles: List
@@ -295,7 +311,7 @@ def loadCrossVis(HHfiles, ants, savearray=False, outfile='', printStatusUpdates=
         File prefix to save data to if savearray is True.
     printStatusUpdates: Boolean
         Option to print updates as files are being loaded.
-        
+
     Returns:
     ---------
     vis_array: Numpy Array
@@ -305,27 +321,30 @@ def loadCrossVis(HHfiles, ants, savearray=False, outfile='', printStatusUpdates=
     bls: List
         List of baselines included in the visibilitiy array. The order of these maps to the baseline axis of the visibility array.
     """
-    bls = [(a1,a2) for a1 in ants for a2 in ants]
-    vis_array = np.zeros((2*len(HHfiles),len(uv_sum_sky.freq_array[0]),4,len(bls)),dtype=np.complex_)
-    lst_array = np.zeros((2*len(HHfiles)))
-    for i,f in enumerate(HHfiles):
-        if i%10==0 and printStatusUpdates:
-            print(f'reading file {i}')
-        JD = float(f.split('zen.')[1].split('.sum')[0])
+    bls = [(a1, a2) for a1 in ants for a2 in ants]
+    vis_array = np.zeros(
+        (2 * len(HHfiles), len(uv_sum_sky.freq_array[0]), 4, len(bls)),
+        dtype=np.complex_,
+    )
+    lst_array = np.zeros((2 * len(HHfiles)))
+    for i, f in enumerate(HHfiles):
+        if i % 10 == 0 and printStatusUpdates:
+            print(f"reading file {i}")
+        JD = float(f.split("zen.")[1].split(".sum")[0])
         uv = UVData()
-        uv.read(f,antenna_nums=ants)
-        for j,bl in enumerate(bls):
-            vis = uv.get_data(bl[0],bl[1])
-            vis_array[i*2:i*2+2,:,:,j] = vis
+        uv.read(f, antenna_nums=ants)
+        for j, bl in enumerate(bls):
+            vis = uv.get_data(bl[0], bl[1])
+            vis_array[i * 2 : i * 2 + 2, :, :, j] = vis
         lsts = uv.lst_array * 3.819719
         inds = np.unique(lsts, return_index=True)[1]
         lsts = [lsts[ind] for ind in sorted(inds)]
-        lst_array[i*2:i*2+2] = lsts
+        lst_array[i * 2 : i * 2 + 2] = lsts
     if savearray:
-        print(f'saving to {outfile}')
-        np.save(f'{outfile}_vis', vis_array)
-        np.save(f'{outfile}_lsts', lst_array)
-        np.save(f'{outfile}_bls', bls)
+        print(f"saving to {outfile}")
+        np.save(f"{outfile}_vis", vis_array)
+        np.save(f"{outfile}_lsts", lst_array)
+        np.save(f"{outfile}_bls", bls)
     return vis_array, lst_array, bls
 
 
@@ -395,8 +414,9 @@ def generate_nodeDict(uv, pols=["E"]):
     inclNodes = np.unique(inclNodes)
     return nodes, antDict, inclNodes
 
+
 def get_slot_number(uv, ant, sortedAntennas, sortedSnapLocs, sortedSnapInputs):
-    ind = np.argmin(abs(np.subtract(sortedAntennas,ant)))
+    ind = np.argmin(abs(np.subtract(sortedAntennas, ant)))
     loc = sortedSnapLocs[ind]
     inp = sortedSnapInputs[ind]
     slot = loc * 3
@@ -754,7 +774,7 @@ def calc_corr_metric(
     nanDiffs=False,
     interleave="even_odd",
     divideByAbs=True,
-    plot_nodes='all',
+    plot_nodes="all",
     perNodeSummary=False,
     printStatusUpdates=True,
     crossPolCheck=False,
@@ -799,7 +819,7 @@ def calc_corr_metric(
     from hera_mc import cm_hookup
 
     if printStatusUpdates:
-        print('Getting metadata')
+        print("Getting metadata")
     if type(pols) == str:
         pols = [pols]
     if use_ants == "all":
@@ -840,21 +860,15 @@ def calc_corr_metric(
     }
     if perNodeSummary:
         perNodeSummary = {
-            pol: {
-                node: {
-                    'intranode': [],
-                    'all': []
-                }
-                for node in inclNodes
-            }
+            pol: {node: {"intranode": [], "all": []} for node in inclNodes}
             for pol in np.append(pols, "allpols")
         }
     x = cm_hookup.get_hookup("default")
     if printStatusUpdates:
-        print('Calculating')
+        print("Calculating")
     for i, a1 in enumerate(useAnts):
-        if i%10 == 0 and printStatusUpdates:
-            print(f'Calculating for antenna {i}')
+        if i % 10 == 0 and printStatusUpdates:
+            print(f"Calculating for antenna {i}")
         for j, a2 in enumerate(useAnts):
             if len(antpols) > 1:
                 ant1 = int(a1[:-1])
@@ -888,6 +902,10 @@ def calc_corr_metric(
                 d.setflags(write=1)
                 d[locs] = np.nan
             if interleave == "even_odd":
+                if uvd_diff is None:
+                    raise ValueError(
+                        "Must supply uvd_diff object in order to use even_odd interleave"
+                    )
                 even = (s + d) / 2
                 odd = (s - d) / 2
             elif interleave == "adjacent_integration":
@@ -977,7 +995,9 @@ def calc_corr_metric(
                         )
                         perBlSummary["allpols"]["intranode_bls"].append((a1, a2))
                     if perNodeSummary:
-                        perNodeSummary[pol][n1]['intranode'].append(np.nanmean(product, axis=0))
+                        perNodeSummary[pol][n1]["intranode"].append(
+                            np.nanmean(product, axis=0)
+                        )
                 else:
                     perBlSummary[pol]["internode_vals"].append(
                         np.nanmean(product, axis=0)
@@ -988,8 +1008,12 @@ def calc_corr_metric(
                     )
                     perBlSummary["allpols"]["internode_bls"].append((a1, a2))
                     if perNodeSummary:
-                        perNodeSummary[pol][n1]['all'].append(np.nanmean(product, axis=0))
-                        perNodeSummary[pol][n2]['all'].append(np.nanmean(product, axis=0))
+                        perNodeSummary[pol][n1]["all"].append(
+                            np.nanmean(product, axis=0)
+                        )
+                        perNodeSummary[pol][n2]["all"].append(
+                            np.nanmean(product, axis=0)
+                        )
         for key in polInds.keys():
             polInds[key][1] = 0
     if perNodeSummary:
