@@ -48,31 +48,49 @@ def write_params_to_text(
         for arg in args.keys():
             val = args[arg]
             if type(val) is list and len(val) > 150:
-                f.write(f'{arg}: [{val[0]} ... {val[-1]}]')
-            elif isinstance(val,UVData) or isinstance(val,UVCal):
-                if isinstance(val,UVData):
-                    f.write(f'{arg}: UVData Object \n')
-                    f.write(f'    antenna numbers: {val.get_ants()} \n')
+                f.write(f"{arg}: [{val[0]} ... {val[-1]}]")
+            elif isinstance(val, UVData) or isinstance(val, UVCal):
+                if isinstance(val, UVData):
+                    f.write(f"{arg}: UVData Object \n")
+                    f.write(f"    antenna numbers: {val.get_ants()} \n")
                     try:
-                        f.write(f'    jd range: {val.time_range[0]} - {val.time_range[-1]} \n')
-                        f.write(f'    lst range: {val.lst_range[0]* 3.819719} - {val.lst_range[-1]* 3.819719} \n')
+                        f.write(
+                            f"    jd range: {val.time_range[0]} - {val.time_range[-1]} \n"
+                        )
+                        f.write(
+                            f"    lst range: {val.lst_range[0]* 3.819719} - {val.lst_range[-1]* 3.819719} \n"
+                        )
                     except:
-                        f.write(f'    jd range: {val.time_array[0]} - {val.time_array[-1]} \n')
-                        f.write(f'    lst range: {val.lst_array[0]* 3.819719} - {val.lst_array[-1]* 3.819719} \n')
-                elif isinstance(val,UVCal):
-                    f.write(f'{arg}: UVCal Object \n')
+                        f.write(
+                            f"    jd range: {val.time_array[0]} - {val.time_array[-1]} \n"
+                        )
+                        f.write(
+                            f"    lst range: {val.lst_array[0]* 3.819719} - {val.lst_array[-1]* 3.819719} \n"
+                        )
+                elif isinstance(val, UVCal):
+                    f.write(f"{arg}: UVCal Object \n")
                     try:
-                        f.write(f'    jd range: {val.time_range[0]} - {val.time_range[-1]} \n')
-                        f.write(f'    lst range: {val.lst_range[0]* 3.819719} - {val.lst_range[-1]* 3.819719} \n')
+                        f.write(
+                            f"    jd range: {val.time_range[0]} - {val.time_range[-1]} \n"
+                        )
+                        f.write(
+                            f"    lst range: {val.lst_range[0]* 3.819719} - {val.lst_range[-1]* 3.819719} \n"
+                        )
                     except:
-                        f.write(f'    jd range: {val.time_array[0]} - {val.time_array[-1]} \n')
-                        f.write(f'    lst range: {val.lst_array[0]* 3.819719} - {val.lst_array[-1]* 3.819719} \n')
-                f.write(f'    freq range: {val.freq_array[0][0]*1e-6} - {val.freq_array[0][-1]*1e-6} \n')
-                if hasattr(val,'filename'):
-                    f.write(f'    File name(s): {val.filename} \n')
-            elif type(val)==np.ufunc:
-                f.write(f'{arg}: {val.__name__}')
-            elif arg=='kwargs':
+                        f.write(
+                            f"    jd range: {val.time_array[0]} - {val.time_array[-1]} \n"
+                        )
+                        f.write(
+                            f"    lst range: {val.lst_array[0]* 3.819719} - {val.lst_array[-1]* 3.819719} \n"
+                        )
+                f.write(
+                    f"    freq range: {val.freq_array[0][0]*1e-6} - {val.freq_array[0][-1]*1e-6} \n"
+                )
+                if hasattr(val, "filename"):
+                    f.write(f"    File name(s): {val.filename} \n")
+            elif type(val) == np.ufunc:
+                f.write(f"{arg}: {val.__name__}")
+            elif arg == "kwargs":
                 continue
             else:
                 f.write(f"{arg}: {val}")
@@ -894,9 +912,9 @@ def calc_corr_metric(
                 continue
             key = (ant1, ant2, pol)
             s = np.asarray(uvd_sum.get_data(key))
-            if interleave == 'even_odd':
+            if interleave == "even_odd":
                 d = np.asarray(uvd_diff.get_data(key))
-            if nanDiffs is True and interleave=='even_odd':
+            if nanDiffs is True and interleave == "even_odd":
                 dAbs = np.asarray(np.abs(d))
                 locs = np.where(dAbs == 0)
                 d.setflags(write=1)
